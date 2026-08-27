@@ -6,6 +6,7 @@ import com.learn.mycc.core.bean.BeanPostProcessor;
 import com.learn.mycc.core.scan.AnnotationScanner;
 import com.learn.mycc.core.tool.ToolRegistry;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -17,6 +18,8 @@ public interface IocContainer {
     void register(BeanDefinition... definitions);
 
     void register(String basePackage);
+
+    void register(Class<?>... types);
 
     void addBeanPostProcessor(BeanPostProcessor processor);
 
@@ -54,6 +57,12 @@ final class DefaultIocContainer implements IocContainer {
     @Override
     public void register(String basePackage) {
         beanFactory.register(scanner.scanBeanDefinitions(basePackage).toArray(BeanDefinition[]::new));
+    }
+
+    @Override
+    public void register(Class<?>... types) {
+        BeanDefinition[] definitions = Arrays.stream(types).map(BeanDefinition::from).toArray(BeanDefinition[]::new);
+        beanFactory.register(definitions);
     }
 
     @Override

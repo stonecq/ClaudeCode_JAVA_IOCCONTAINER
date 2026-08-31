@@ -76,9 +76,20 @@ public final class OpenAiCompatProvider implements LlmProvider {
         for (ChatMessage message : request.messages()) {
             ObjectNode node = messages.addObject();
             node.put("role", message.role().name().toLowerCase());
-            node.put("content", message.content());
+            node.put("content", message.content() == null ? "" : message.content());
             if (message.toolCallId() != null) {
                 node.put("tool_call_id", message.toolCallId());
+            }
+            if (message.hasToolCalls()) {
+                ArrayNode toolCalls = node.putArray("tool_calls");
+                for (ToolCall call : message.toolCalls()) {
+                    ObjectNode toolCall = toolCalls.addObject();
+                    toolCall.put("id", call.id());
+                    toolCall.put("type", "function");
+                    ObjectNode function = toolCall.putObject("function");
+                    function.put("name", call.name());
+                    function.put("arguments", call.arguments());
+                }
             }
         }
         if (!request.tools().isEmpty()) {

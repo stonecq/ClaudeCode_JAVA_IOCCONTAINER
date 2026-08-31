@@ -21,6 +21,7 @@ class OpenAiCompatProviderTest {
 
     private HttpServer server;
     private volatile String receivedAuth;
+    private volatile String receivedBody;
 
     @BeforeEach
     void startServer() throws IOException {
@@ -101,9 +102,25 @@ class OpenAiCompatProviderTest {
         assertThat(sink.error.getMessage()).contains("401");
     }
 
+    @Test
+    void echoesAssistantToolCallsInRequestBody() {
+        route("data: [DONE]\n\n", 200);
+        RecordingStreamSink sink = new RecordingStreamSink();
+        ChatRequest req = ChatRequest.of("gpt-test", List.of(
+                ChatMessage.assistantWithTools("", List.of(new ToolCall("call_1", "read_file", "{\"path\":\"a.txt\"}")))));
+
+        provider().chat(req, sink);
+
+        assertThat(sink.error).isNull();
+        assertThat(receivedBody).contains("\"tool_calls\"");
+        assertThat(receivedBody).contains("\"call_1\"");
+        assertThat(receivedBody).contains("\"read_file\"");
+    }
+
     private void route(String sseBody, int status) {
         server.createContext("/v1/chat/completions", exchange -> {
             receivedAuth = exchange.getRequestHeaders().getFirst("Authorization");
+            receivedBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             byte[] body = sseBody.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "text/event-stream");
             exchange.sendResponseHeaders(status, body.length);

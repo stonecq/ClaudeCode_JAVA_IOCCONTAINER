@@ -44,6 +44,9 @@ public final class MockProvider implements LlmProvider {
     public void chat(ChatRequest request, StreamSink sink) {
         try {
             ChatResponse response = script.respond(request);
+            if (response.reasoningContent() != null && !response.reasoningContent().isBlank()) {
+                sink.onChunk(new StreamChunk(null, response.reasoningContent()));
+            }
             if (!response.content().isEmpty()) {
                 sink.onChunk(new StreamChunk(response.content()));
             }

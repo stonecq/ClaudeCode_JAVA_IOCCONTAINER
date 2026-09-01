@@ -57,7 +57,6 @@ public final class AgentLoop {
         this.session = storage == null ? Session.create() : storage.latest().orElseGet(Session::create);
     }
 
-
     /** 从工具注册表装配：生成 ToolSpec（发给 LLM）并构造执行器。 */
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations) {
@@ -87,7 +86,7 @@ public final class AgentLoop {
             for (int iteration = 0; iteration < maxIterations; iteration++) {
                 ChatResponse response = callProvider(buildRequest());
                 if (response.hasToolCalls()) {
-                    handleToolCalls(response.toolCalls());
+                    handleToolCalls(response);
                     continue;
                 }
                 String finalText = response.content();
@@ -118,7 +117,12 @@ public final class AgentLoop {
         provider.chat(request, new StreamSink() {
             @Override
             public void onChunk(StreamChunk chunk) {
-                emit(OutputEventType.TOKEN, chunk.content());
+                if (chunk.reasoningContent() != null && !chunk.reasoningContent().isBlank()){
+                    emit(OutputEventType.THINKING, chunk.reasoningContent());
+                }
+                if (chunk.content() != null && !chunk.content().isBlank()){
+                    emit(OutputEventType.TOKEN, chunk.content());
+                }
             }
 
             @Override
@@ -137,8 +141,10 @@ public final class AgentLoop {
         return responseRef.get();
     }
 
-    private void handleToolCalls(List<ToolCall> toolCalls) {
-        session.addMessage(Message.assistant("", toolCalls));
+    private void handleToolCalls(ChatResponse response) {
+        String content = response.content();
+        List<ToolCall> toolCalls = response.toolCalls();
+        session.addMessage(Message.assistant(content, toolCalls));
         emit(OutputEventType.TOOL_CALL, formatToolCalls(toolCalls));
         for (ToolCall call : toolCalls) {
             ToolResult result = executor.execute(call);

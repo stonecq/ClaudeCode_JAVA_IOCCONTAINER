@@ -92,6 +92,24 @@ class AgentLoopTest {
     }
 
     @Test
+    void emitsThinkingEventForReasoningThenToken() {
+        MockProvider provider = MockProvider.scripted(request ->
+                new ChatResponse("最终答案", "我在推理", List.of()));
+        RecordingPort port = new RecordingPort();
+        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, registry, "mock", 10);
+
+        String result = agent.run("hi");
+
+        assertThat(result).isEqualTo("最终答案");
+        assertThat(port.types()).containsExactly(
+                OutputEventType.THINKING,
+                OutputEventType.TOKEN,
+                OutputEventType.DONE);
+        assertThat(port.events).extracting(OutputEvent::payload)
+                .containsExactly("我在推理", "最终答案", "最终答案");
+    }
+
+    @Test
     void surfacesProviderErrorAsErrorEvent() {
         MockProvider provider = MockProvider.scripted(request -> {
             throw new IllegalStateException("provider-down");

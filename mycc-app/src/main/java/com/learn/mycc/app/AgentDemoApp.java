@@ -5,6 +5,7 @@ import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.ai.model.ModelConfig;
 import com.learn.mycc.ai.provider.OpenAiCompatProvider;
 import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.storage.file.FileStorage;
 
 import java.io.BufferedReader;
@@ -33,7 +34,7 @@ public final class AgentDemoApp {
         try {
             out.println("mycc 简易 Agent 演示（deepseek LLM）— 已装配 " + container.getToolRegistry().getAll().size() + " 个工具");
             out.println("/exit 退出");
-            OpenAiCompatProvider provider = deepseekProvider(out);
+            OpenAiCompatProvider provider = openCodeDsProvider(out);
             if (provider == null) {
                 return;
             }
@@ -41,8 +42,9 @@ public final class AgentDemoApp {
             if (store.latest().isPresent()) {
                 out.println("检测到历史会话，将自动恢复继续上次上下文。");
             }
+            boolean showReasoning = Boolean.parseBoolean(new ConfigService().get("showReasoning", "true"));
             AgentLoop agent = AgentLoop.withToolRegistry(
-                    new ConsolePort(out),
+                    new ConsolePort(out, showReasoning),
                     provider,
                     container.getToolRegistry(),
                     "deepseek-v4-flash",
@@ -69,6 +71,18 @@ public final class AgentDemoApp {
         } finally {
             container.close();
         }
+    }
+
+
+    private static OpenAiCompatProvider openCodeDsProvider(PrintStream out) {
+        String apiKey = System.getenv("OPENCODE_KEY");
+        if (apiKey == null || apiKey.isBlank()) {
+            out.println("未设置环境变量 OPENCODE_KEY，无法接入 openCode。");
+            out.println("示例：OPENCODE_KEY=sk-xxx mvn -pl mycc-app exec:java");
+            return null;
+        }
+        String baseUrl = "https://opencode.ai/zen/go/v1";
+        return new OpenAiCompatProvider(new ModelConfig(apiKey, baseUrl));
     }
 
     private static OpenAiCompatProvider deepseekProvider(PrintStream out) {

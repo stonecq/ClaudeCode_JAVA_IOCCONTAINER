@@ -113,6 +113,7 @@ public final class OpenAiCompatProvider implements LlmProvider {
 
     private void parseStream(InputStream input, StreamSink sink) {
         StringBuilder content = new StringBuilder();
+        StringBuilder reasoningContent = new StringBuilder();
         Map<Integer, ToolCallBuilder> toolCallBuilders = new TreeMap<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
@@ -130,19 +131,25 @@ public final class OpenAiCompatProvider implements LlmProvider {
                     continue;
                 }
                 JsonNode delta = choices.get(0).path("delta");
+                String deltaReasoningContent = delta.path("reasoning_content").asText(null);
                 String deltaContent = delta.path("content").asText(null);
+                if (deltaReasoningContent != null){
+                    reasoningContent.append(deltaReasoningContent);
+                }
                 if (deltaContent != null) {
                     content.append(deltaContent);
-                    sink.onChunk(new StreamChunk(deltaContent));
+                }
+                if (deltaReasoningContent != null || deltaContent != null) {
+                    sink.onChunk(new StreamChunk(deltaContent, deltaReasoningContent));
                 }
                 for (JsonNode toolCall : delta.path("tool_calls")) {
                     int index = toolCall.path("index").asInt();
                     ToolCallBuilder builder = toolCallBuilders.computeIfAbsent(index, i -> new ToolCallBuilder());
-                    if (toolCall.has("id")) {
+                    if (toolCall.has("id") && !toolCall.get("id").isNull()) {
                         builder.id = toolCall.path("id").asText();
                     }
                     JsonNode function = toolCall.path("function");
-                    if (function.has("name")) {
+                    if (function.has("name") && !function.get("name").isNull()) {
                         builder.name = function.path("name").asText();
                     }
                     builder.arguments.append(function.path("arguments").asText(""));
@@ -154,7 +161,7 @@ public final class OpenAiCompatProvider implements LlmProvider {
         java.util.List<ToolCall> toolCalls = toolCallBuilders.values().stream()
                 .map(builder -> new ToolCall(builder.id, builder.name, builder.arguments.toString()))
                 .toList();
-        sink.onComplete(new ChatResponse(content.toString(), toolCalls));
+        sink.onComplete(new ChatResponse(content.toString(), reasoningContent.toString(), toolCalls));
     }
 
     private static final class ToolCallBuilder {

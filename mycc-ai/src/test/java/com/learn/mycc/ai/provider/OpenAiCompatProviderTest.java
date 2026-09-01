@@ -56,6 +56,32 @@ class OpenAiCompatProviderTest {
     }
 
     @Test
+    void streamsReasoningContentAndKeepsItInResponse() {
+        String sse = """
+                data: {"choices":[{"delta":{"reasoning_content":"让我想想 "},"finish_reason":null}]}
+
+                data: {"choices":[{"delta":{"reasoning_content":"先分析一下"},"finish_reason":null}]}
+
+                data: {"choices":[{"delta":{"content":"最终答案"},"finish_reason":null}]}
+
+                data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
+
+                data: [DONE]
+
+                """;
+        route(sse, 200);
+        RecordingStreamSink sink = new RecordingStreamSink();
+
+        provider().chat(request(), sink);
+
+        assertThat(sink.error).isNull();
+        assertThat(sink.response.reasoningContent()).isEqualTo("让我想想 先分析一下");
+        assertThat(sink.response.content()).isEqualTo("最终答案");
+        assertThat(sink.chunks).extracting(chunk -> chunk.reasoningContent())
+                .containsExactly("让我想想 ", "先分析一下", null);
+    }
+
+    @Test
     void parsesToolCalls() {
         String sse = """
                 data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","function":{"name":"read_file","arguments":""}}]},"finish_reason":null}]}

@@ -21,4 +21,8 @@ public final class Conversation {
     public List<ChatMessage> toChatMessages() {
         return messages.stream().map(Message::toChatMessage).toList();
     }
+
+    public boolean isEmpty(){
+        return messages.isEmpty();
+    }
 }

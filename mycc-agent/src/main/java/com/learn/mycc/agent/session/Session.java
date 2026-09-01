@@ -27,4 +27,8 @@ public final class Session {
     public void addMessage(Message message) {
         this.conversation.add(message);
     }
+
+    public boolean isEmpty(){
+        return this.conversation.isEmpty();
+    }
 }

@@ -1,9 +1,11 @@
 package com.learn.mycc.app;
 
 import com.learn.mycc.agent.loop.AgentLoop;
+import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.ai.model.ModelConfig;
 import com.learn.mycc.ai.provider.OpenAiCompatProvider;
 import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.storage.file.FileStorage;
 
 import java.io.BufferedReader;
 import java.io.FileDescriptor;
@@ -29,19 +31,23 @@ public final class AgentDemoApp {
         MyccApplication application = new MyccApplication("com.learn.mycc");
         IocContainer container = application.getIocContainer();
         try {
+            out.println("mycc 简易 Agent 演示（deepseek LLM）— 已装配 " + container.getToolRegistry().getAll().size() + " 个工具");
+            out.println("/exit 退出");
             OpenAiCompatProvider provider = deepseekProvider(out);
             if (provider == null) {
                 return;
+            }
+            SessionStore store = new SessionStore(FileStorage.defaultDirectory());
+            if (store.latest().isPresent()) {
+                out.println("检测到历史会话，将自动恢复继续上次上下文。");
             }
             AgentLoop agent = AgentLoop.withToolRegistry(
                     new ConsolePort(out),
                     provider,
                     container.getToolRegistry(),
                     "deepseek-v4-flash",
-                    10);
-
-            out.println("mycc 简易 Agent 演示（deepseek LLM）— 已装配 " + container.getToolRegistry().getAll().size() + " 个工具");
-            out.println("/exit 退出");
+                    10,
+                    store);
             while (true) {
                 out.print("你 > ");
                 out.flush();

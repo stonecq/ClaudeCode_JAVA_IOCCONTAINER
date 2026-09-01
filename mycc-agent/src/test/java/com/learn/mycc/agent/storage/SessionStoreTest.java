@@ -83,4 +83,36 @@ class SessionStoreTest {
 
         assertThat(restored.conversation().messages().get(0).toolCalls()).isEmpty();
     }
+
+    @Test
+    void latestEmptyWhenNothingSaved() {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        assertThat(store.latest()).isEmpty();
+    }
+
+    @Test
+    void latestReturnsMostRecentlySavedSession() {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        Session first = Session.create();
+        first.addMessage(Message.user("first"));
+        store.save(first);
+        Session second = Session.create();
+        second.addMessage(Message.user("second"));
+        store.save(second);
+
+        Session latest = store.latest().orElseThrow();
+        assertThat(latest.id()).isEqualTo(second.id());
+        assertThat(latest.conversation().messages()).extracting(Message::content)
+                .containsExactly("second");
+    }
+
+    @Test
+    void saveWritesLatestPointer() throws IOException {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        Session session = Session.create();
+        session.addMessage(Message.user("hi"));
+        store.save(session);
+
+        assertThat(Files.readString(tempDir.resolve("session/latest"))).isEqualTo(session.id());
+    }
 }

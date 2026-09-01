@@ -2,6 +2,7 @@ package com.learn.mycc.agent.loop;
 
 import com.learn.mycc.agent.session.Message;
 import com.learn.mycc.agent.session.Session;
+import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.agent.tool.ToolCallExecutor;
 import com.learn.mycc.agent.tool.ToolResult;
 import com.learn.mycc.ai.model.ChatRequest;
@@ -24,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Agent 主循环：多轮调 LLM → 有工具调用则执行并回填消息历史 → 无工具调用则输出最终正文结束。
  * 只通过 {@link InteractionPort} 下发 {@link OutputEvent}；工具失败回填给 LLM，不崩会话。
+ * 可选注入 {@link SessionStore}：注入后启动时自动恢复最近会话，每轮 {@link #run} 结束落盘。
  */
 public final class AgentLoop {
 
@@ -33,35 +35,52 @@ public final class AgentLoop {
     private final List<ToolSpec> tools;
     private final String model;
     private final int maxIterations;
-    private final Session session = Session.create();
+    private final Session session;
+    private final SessionStore storage;
     private long seq = 0;
 
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations) {
+        this(port, provider, executor, tools, model, maxIterations, null);
+    }
+
+    /** @param storage 会话存储；传 null 表示不持久化。非 null 时启动自动恢复最近会话、每轮结束落盘。 */
+    public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
+                     List<ToolSpec> tools, String model, int maxIterations, SessionStore storage) {
         this.port = port;
         this.provider = provider;
         this.executor = executor;
         this.tools = List.copyOf(tools);
         this.model = model;
         this.maxIterations = maxIterations;
+        this.storage = storage;
+        this.session = storage == null ? Session.create() : storage.latest().orElseGet(Session::create);
     }
+
 
     /** 从工具注册表装配：生成 ToolSpec（发给 LLM）并构造执行器。 */
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations) {
+        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, null);
+    }
+
+    /** 从工具注册表装配，并指定会话存储（null 表示不持久化）。 */
+    public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
+                                             ToolRegistry toolRegistry, String model, int maxIterations,
+                                             SessionStore storage) {
         ParameterSchemaGenerator schemaGenerator = new ParameterSchemaGenerator();
         List<ToolSpec> specs = toolRegistry.getAll().stream()
                 .map(definition -> new ToolSpec(definition.getName(), definition.getDescription(),
                         schemaGenerator.generate(definition.getMethod())))
                 .toList();
-        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations);
+        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage);
     }
 
     public Session session() {
         return session;
     }
 
-    /** 以一条用户消息开始一轮对话，返回最终正文；Provider 错误经 ERROR 事件下发并作为返回值。 */
+    /** 以一条用户消息开始一轮对话，返回最终正文；Provider 错误经 ERROR 事件下发并作为返回值。每轮结束若有存储则落盘。 */
     public String run(String userMessage) {
         session.addMessage(Message.user(userMessage));
         try {
@@ -82,6 +101,10 @@ public final class AgentLoop {
         } catch (MyccException e) {
             emit(OutputEventType.ERROR, e.getMessage());
             return e.getMessage();
+        } finally {
+            if (storage != null) {
+                storage.save(session);
+            }
         }
     }
 

@@ -13,12 +13,14 @@ import java.util.Optional;
 
 /**
  * 会话落盘：把 Session 消息历史（含工具调用与结果）序列化为 JSON 存入 {@link Storage}，
- * 可按 id 原样恢复。key 约定为 {@code session/<id>.json}。
+ * 可按 id 原样恢复，并维护一个"最近会话"指针用于跨进程续聊。
+ * key 约定：会话 {@code session/<id>.json}，最近指针 {@code session/latest}。
  */
 public final class SessionStore {
 
     private static final String PREFIX = "session/";
     private static final String SUFFIX = ".json";
+    private static final String LATEST_KEY = PREFIX + "latest";
     private static final TypeReference<List<Message>> MESSAGE_LIST = new TypeReference<>() {};
 
     private final Storage storage;
@@ -32,9 +34,16 @@ public final class SessionStore {
         try {
             String json = mapper.writeValueAsString(session.conversation().messages());
             storage.write(key(session.id()), json);
+            storage.write(LATEST_KEY, session.id());
         } catch (JsonProcessingException e) {
             throw new MyccException("序列化会话失败: " + session.id(), e);
         }
+    }
+
+    /** 返回最近一次保存的会话；从未保存过时返回空。 */
+    public Optional<Session> latest() {
+        Optional<String> id = storage.read(LATEST_KEY);
+        return id.isEmpty() ? Optional.empty() : load(id.get());
     }
 
     public Optional<Session> load(String id) {

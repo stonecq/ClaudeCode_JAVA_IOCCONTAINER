@@ -21,6 +21,21 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.learn.mycc</groupId>
+            <artifactId>mycc-ai</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.learn.mycc</groupId>
+            <artifactId>mycc-ui</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.learn.mycc</groupId>
+            <artifactId>mycc-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
@@ -43,7 +58,7 @@
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.learn.mycc.app.MyccApplication</mainClass>
+                    <mainClass>com.learn.mycc.app.AgentDemoApp</mainClass>
                 </configuration>
             </plugin>
         </plugins>

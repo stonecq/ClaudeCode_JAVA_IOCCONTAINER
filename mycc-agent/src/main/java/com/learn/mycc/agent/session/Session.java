@@ -23,4 +23,8 @@ public final class Session {
     public Conversation conversation() {
         return conversation;
     }
+
+    public void addMessage(Message message) {
+        this.conversation.add(message);
+    }
 }

@@ -19,6 +19,7 @@ import com.learn.mycc.ui.OutputEvent;
 import com.learn.mycc.ui.OutputEventType;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Agent 主循环：多轮调 LLM → 有工具调用则执行并回填消息历史 → 无工具调用则输出最终正文结束。
@@ -62,7 +63,7 @@ public final class AgentLoop {
 
     /** 以一条用户消息开始一轮对话，返回最终正文；Provider 错误经 ERROR 事件下发并作为返回值。 */
     public String run(String userMessage) {
-        session.conversation().add(Message.user(userMessage));
+        session.addMessage(Message.user(userMessage));
         try {
             for (int iteration = 0; iteration < maxIterations; iteration++) {
                 ChatResponse response = callProvider(buildRequest());
@@ -71,7 +72,7 @@ public final class AgentLoop {
                     continue;
                 }
                 String finalText = response.content();
-                session.conversation().add(Message.assistant(finalText, List.of()));
+                session.addMessage(Message.assistant(finalText, List.of()));
                 emit(OutputEventType.DONE, finalText);
                 return finalText;
             }
@@ -89,8 +90,8 @@ public final class AgentLoop {
     }
 
     private ChatResponse callProvider(ChatRequest request) {
-        ChatResponse[] responseRef = new ChatResponse[1];
-        Throwable[] errorRef = new Throwable[1];
+        AtomicReference<ChatResponse> responseRef = new AtomicReference<>();
+        AtomicReference<Throwable> errorRef = new AtomicReference<>();
         provider.chat(request, new StreamSink() {
             @Override
             public void onChunk(StreamChunk chunk) {
@@ -99,26 +100,26 @@ public final class AgentLoop {
 
             @Override
             public void onComplete(ChatResponse response) {
-                responseRef[0] = response;
+                responseRef.set(response);
             }
 
             @Override
             public void onError(Throwable error) {
-                errorRef[0] = error;
+                errorRef.set(error);
             }
         });
-        if (errorRef[0] != null) {
-            throw new MyccException("LLM 调用失败: " + errorRef[0].getMessage(), errorRef[0]);
+        if (errorRef.get() != null) {
+            throw new MyccException("LLM 调用失败: " + errorRef.get().getMessage(), errorRef.get());
         }
-        return responseRef[0];
+        return responseRef.get();
     }
 
     private void handleToolCalls(List<ToolCall> toolCalls) {
-        session.conversation().add(Message.assistant("", toolCalls));
+        session.addMessage(Message.assistant("", toolCalls));
         emit(OutputEventType.TOOL_CALL, formatToolCalls(toolCalls));
         for (ToolCall call : toolCalls) {
             ToolResult result = executor.execute(call);
-            session.conversation().add(Message.tool(call.id(), result.output()));
+            session.addMessage(Message.tool(call.id(), result.output()));
             emit(OutputEventType.TOOL_RESULT, result.callId() + " => " + result.output());
         }
     }

@@ -12,7 +12,8 @@ class MyccApplicationTest {
 
     @Test
     void assemblesAllSevenBuiltinTools() {
-        IocContainer container = MyccApplication.assemble();
+        MyccApplication application = new MyccApplication();
+        IocContainer container = application.getIocContainer();
         try {
             ToolRegistry registry = container.getToolRegistry();
             List<String> names = registry.getAll().stream().map(tool -> tool.getName()).toList();

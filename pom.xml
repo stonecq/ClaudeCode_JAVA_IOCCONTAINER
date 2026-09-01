@@ -17,6 +17,7 @@
         <module>mycc-ui</module>
         <module>mycc-tools</module>
         <module>mycc-ai</module>
+        <module>mycc-storage</module>
         <module>mycc-agent</module>
         <module>mycc-app</module>
     </modules>

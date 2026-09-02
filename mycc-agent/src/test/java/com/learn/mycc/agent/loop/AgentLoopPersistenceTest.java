@@ -30,7 +30,8 @@ class AgentLoopPersistenceTest {
         MockProvider provider = MockProvider.scripted(request -> ChatResponse.text("回答"));
         RecordingPort port = new RecordingPort();
 
-        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, new ToolRegistry(), "mock", 10, store);
+        Session session = Session.create();
+        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, new ToolRegistry(), "mock", 10, store, session);
         agent.run("你好");
 
         Session saved = store.latest().orElseThrow();
@@ -41,7 +42,7 @@ class AgentLoopPersistenceTest {
     }
 
     @Test
-    void resumesLatestSessionOnConstructionAndContinues() {
+    void continuesInExplicitSelectedSession() {
         FileStorage fileStorage = new FileStorage(tempDir);
         SessionStore store = new SessionStore(fileStorage);
         Session old = Session.create();
@@ -56,7 +57,7 @@ class AgentLoopPersistenceTest {
         });
         RecordingPort port = new RecordingPort();
 
-        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, new ToolRegistry(), "mock", 10, store);
+        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, new ToolRegistry(), "mock", 10, store, old);
 
         assertThat(agent.session().id()).isEqualTo(old.id());
         assertThat(agent.session().conversation().messages()).hasSize(2);
@@ -68,6 +69,26 @@ class AgentLoopPersistenceTest {
                 .containsExactly("旧问题", "旧回答", "新问题");
         assertThat(agent.session().conversation().messages()).hasSize(4);
         assertThat(store.latest().orElseThrow().conversation().messages()).hasSize(4);
+    }
+
+    @Test
+    void bindsExplicitSessionEvenWhenLatestExists() {
+        FileStorage fileStorage = new FileStorage(tempDir);
+        SessionStore store = new SessionStore(fileStorage);
+        Session old = Session.create();
+        old.addMessage(Message.user("旧问题"));
+        old.addMessage(Message.assistant("旧回答", List.of()));
+        store.save(old);
+
+        Session fresh = Session.create();
+        MockProvider provider = MockProvider.scripted(request -> ChatResponse.text("回答"));
+        RecordingPort port = new RecordingPort();
+        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, new ToolRegistry(), "mock", 10, store, fresh);
+        agent.run("新问题");
+
+        assertThat(agent.session().id()).isEqualTo(fresh.id());
+        assertThat(agent.session().conversation().messages()).extracting(Message::content)
+                .containsExactly("新问题", "回答");
     }
 
     @Test

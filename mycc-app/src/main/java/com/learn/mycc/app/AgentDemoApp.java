@@ -1,6 +1,7 @@
 package com.learn.mycc.app;
 
 import com.learn.mycc.agent.loop.AgentLoop;
+import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.ai.model.ModelConfig;
 import com.learn.mycc.ai.provider.OpenAiCompatProvider;
@@ -39,8 +40,13 @@ public final class AgentDemoApp {
                 return;
             }
             SessionStore store = new SessionStore(FileStorage.defaultDirectory());
-            if (store.latest().isPresent()) {
-                out.println("检测到历史会话，将自动恢复继续上次上下文。");
+            Session session;
+            if (store.list().isEmpty()) {
+                session = Session.create();
+            } else {
+                SessionMenu menu = new SessionMenu(store, out, reader);
+                session = menu.select();
+                menu.printHistory(session);
             }
             boolean showReasoning = Boolean.parseBoolean(new ConfigService().get("showReasoning", "true"));
             AgentLoop agent = AgentLoop.withToolRegistry(
@@ -49,7 +55,8 @@ public final class AgentDemoApp {
                     container.getToolRegistry(),
                     "deepseek-v4-flash",
                     10,
-                    store);
+                    store,
+                    session);
             while (true) {
                 out.print("你 > ");
                 out.flush();

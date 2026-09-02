@@ -103,4 +103,16 @@ class FileStorageTest {
         assertThatThrownBy(() -> storage.write("a\0b.txt", "x"))
                 .isInstanceOf(MyccException.class);
     }
+
+    @Test
+    void lastModifiedReturnsEpochMillisForExistingKey() {
+        storage.write("a.txt", "hello");
+        assertThat(storage.lastModified("a.txt")).isPresent();
+        assertThat(storage.lastModified("a.txt").get()).isLessThanOrEqualTo(System.currentTimeMillis());
+    }
+
+    @Test
+    void lastModifiedEmptyForMissingKey() {
+        assertThat(storage.lastModified("missing.txt")).isEmpty();
+    }
 }

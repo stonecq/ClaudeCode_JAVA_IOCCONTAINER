@@ -20,4 +20,7 @@ public interface Storage {
 
     /** 列出所有已存在的 key（相对路径、按序）。 */
     List<String> keys();
+
+    /** 返回 key 对应内容最后修改时间的 epoch 毫秒；内容不存在返回 {@link Optional#empty()}。 */
+    Optional<Long> lastModified(String key);
 }

@@ -83,6 +83,19 @@ public final class FileStorage implements Storage {
         }
     }
 
+    @Override
+    public Optional<Long> lastModified(String key) {
+        Path target = resolve(key);
+        if (!Files.isRegularFile(target)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(Files.getLastModifiedTime(target).toMillis());
+        } catch (IOException e) {
+            throw new MyccException("读取存储修改时间失败: " + key + " / " + e.getMessage(), e);
+        }
+    }
+
     private Path resolve(String key) {
         if (key == null || key.isBlank()) {
             throw new MyccException("存储 key 不能为空");

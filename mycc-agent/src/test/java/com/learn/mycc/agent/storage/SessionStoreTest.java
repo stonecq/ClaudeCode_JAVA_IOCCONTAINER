@@ -10,6 +10,7 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -114,5 +115,62 @@ class SessionStoreTest {
         store.save(session);
 
         assertThat(Files.readString(tempDir.resolve("session/latest"))).isEqualTo(session.id());
+    }
+
+    @Test
+    void listReturnsSessionsOrderedByLastModifiedDesc() throws IOException {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        Session first = Session.create();
+        first.addMessage(Message.user("first question"));
+        store.save(first);
+        Session second = Session.create();
+        second.addMessage(Message.user("second question"));
+        store.save(second);
+
+        Files.setLastModifiedTime(tempDir.resolve("session").resolve(first.id() + ".json"), FileTime.fromMillis(1000L));
+        Files.setLastModifiedTime(tempDir.resolve("session").resolve(second.id() + ".json"), FileTime.fromMillis(2000L));
+
+        List<SessionStore.SessionSummary> list = store.list();
+        assertThat(list).extracting(SessionStore.SessionSummary::id)
+                .containsExactly(second.id(), first.id());
+        assertThat(list).extracting(SessionStore.SessionSummary::title)
+                .containsExactly("second question", "first question");
+    }
+
+    @Test
+    void listTitleFallsBackToPlaceholderWithoutUserMessage() {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        Session session = Session.create();
+        session.addMessage(Message.assistant("hello", List.of()));
+        store.save(session);
+
+        assertThat(store.list()).extracting(SessionStore.SessionSummary::title)
+                .containsExactly("（空对话）");
+    }
+
+    @Test
+    void listExcludesLatestPointerAndEmptyWhenNothingSaved() {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        assertThat(store.list()).isEmpty();
+
+        Session session = Session.create();
+        session.addMessage(Message.user("hi"));
+        store.save(session);
+
+        // save 会同时写出 session/latest 指针；不带 .json 后缀，不应入列
+        assertThat(store.list()).hasSize(1);
+    }
+
+    @Test
+    void listTitleUsesLastUserMessageNotFirst() {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        Session session = Session.create();
+        session.addMessage(Message.user("第一问"));
+        session.addMessage(Message.assistant("答一", List.of()));
+        session.addMessage(Message.user("第二问"));
+        store.save(session);
+
+        assertThat(store.list()).extracting(SessionStore.SessionSummary::title)
+                .containsExactly("第二问");
     }
 }

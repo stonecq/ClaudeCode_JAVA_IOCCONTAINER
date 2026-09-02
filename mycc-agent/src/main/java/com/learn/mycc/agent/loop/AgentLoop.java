@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Agent 主循环：多轮调 LLM → 有工具调用则执行并回填消息历史 → 无工具调用则输出最终正文结束。
  * 只通过 {@link InteractionPort} 下发 {@link OutputEvent}；工具失败回填给 LLM，不崩会话。
- * 可选注入 {@link SessionStore}：注入后启动时自动恢复最近会话，每轮 {@link #run} 结束落盘。
+ * 可选注入 {@link SessionStore}：注入后每轮 {@link #run} 结束落盘，会话由调用方显式绑定。
  */
 public final class AgentLoop {
 
@@ -41,12 +41,12 @@ public final class AgentLoop {
 
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations) {
-        this(port, provider, executor, tools, model, maxIterations, null);
+        this(port, provider, executor, tools, model, maxIterations, null, Session.create());
     }
 
-    /** @param storage 会话存储；传 null 表示不持久化。非 null 时启动自动恢复最近会话、每轮结束落盘。 */
+    /** @param storage 会话存储；null 表示不持久化。@param session 已绑定会话（续聊/新对话由调用方选定）。 */
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
-                     List<ToolSpec> tools, String model, int maxIterations, SessionStore storage) {
+                     List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session) {
         this.port = port;
         this.provider = provider;
         this.executor = executor;
@@ -54,25 +54,25 @@ public final class AgentLoop {
         this.model = model;
         this.maxIterations = maxIterations;
         this.storage = storage;
-        this.session = storage == null ? Session.create() : storage.latest().orElseGet(Session::create);
+        this.session = session;
     }
 
-    /** 从工具注册表装配：生成 ToolSpec（发给 LLM）并构造执行器。 */
+    /** 从工具注册表装配：不持久化、新建会话。 */
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations) {
-        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, null);
+        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, null, Session.create());
     }
 
-    /** 从工具注册表装配，并指定会话存储（null 表示不持久化）。 */
+    /** 从工具注册表装配并绑定指定会话；storage 为 null 表示不持久化。 */
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations,
-                                             SessionStore storage) {
+                                             SessionStore storage, Session session) {
         ParameterSchemaGenerator schemaGenerator = new ParameterSchemaGenerator();
         List<ToolSpec> specs = toolRegistry.getAll().stream()
                 .map(definition -> new ToolSpec(definition.getName(), definition.getDescription(),
                         schemaGenerator.generate(definition.getMethod())))
                 .toList();
-        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage);
+        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage, session);
     }
 
     public Session session() {

@@ -27,41 +27,66 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** 兼容 OpenAI /chat/completions 流式接口的 Provider（SSE 解析 + tool_calls 累积）。 */
+/**
+ * 兼容 OpenAI /chat/completions 流式接口的 Provider（SSE 解析 + tool_calls 累积）。
+ * <p>通过真实的 HTTP(S) 调用 DeepSeek 等兼容服务，处理流式 SSE、增量 delta 累加、
+ * 思考内容（reasoning_content）、工具调用分段拼装及各类网络错误。
+ * 与 {@link MockProvider} 行为对齐：均通过 {@link StreamSink} 回调。
+ */
 public final class OpenAiCompatProvider implements LlmProvider {
 
+    /** SSE 流结束标记：遇到该行表示服务端已完成全部输出。 */
     private static final String DONE_MARKER = "[DONE]";
 
+    /** 连接配置（API Key + 基址），不应为 null。 */
     private final ModelConfig config;
+    /** HTTP 客户端；可注入以便测试替换为 MockWebServer。 */
     private final HttpClient client;
+    /** Jackson 映射器，用于请求体构造与 SSE 数据反序列化。 */
     private final ObjectMapper mapper = new ObjectMapper();
 
+    /** 使用默认 HttpClient 构造，便于生产直接使用。 */
     public OpenAiCompatProvider(ModelConfig config) {
         this(config, HttpClient.newHttpClient());
     }
 
+    /** 包私有构造：注入自定义 HttpClient，供测试替换网络层。 */
     OpenAiCompatProvider(ModelConfig config, HttpClient client) {
         this.config = config;
         this.client = client;
     }
 
+    /**
+     * 发起一次流式对话。
+     * <p>先构建并发送 HTTP 请求，非 200 时读取错误体并转为异常；200 时解析 SSE 流。
+     * 所有失败（网络、HTTP 错误、解析错误）统一转为 onError，保证回调以完成/错误收尾。
+     */
     @Override
     public void chat(ChatRequest request, StreamSink sink) {
         try {
             HttpRequest httpRequest = buildRequest(request);
             HttpResponse<InputStream> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofInputStream());
             if (response.statusCode() != 200) {
+                // 非 200：读取完整错误体以便提供可诊断信息后抛异常。
                 String errorBody = new String(response.body().readAllBytes(), StandardCharsets.UTF_8);
                 throw new MyccException("LLM 接口返回 " + response.statusCode() + ": " + errorBody);
             }
             parseStream(response.body(), sink);
         } catch (MyccException e) {
+            // 已包装的业务异常直接透传，避免二次包装混淆根因。
             sink.onError(e);
         } catch (Exception e) {
+            // 网络超时/连接中断等底层异常在此统一包装为 MyccException。
             sink.onError(new MyccException("调用 LLM 接口失败", e));
         }
     }
 
+    /**
+     * 将 ChatRequest 序列化为 OpenAI 兼容格式的请求体并构建 HttpRequest。
+     * <p>要点：toolCallId 映射为 tool_call_id；assistant 消息中的 tool_calls 原样回传
+     * （多轮协议要求）；工具定义以 JSON Schema 写入 tools；options 仅在非 null 时写入，
+     * 缺失字段由服务端取默认值。
+     */
     private HttpRequest buildRequest(ChatRequest request) {
         ObjectNode body = mapper.createObjectNode();
         body.put("model", request.model());
@@ -75,7 +100,9 @@ public final class OpenAiCompatProvider implements LlmProvider {
         ArrayNode messages = body.putArray("messages");
         for (ChatMessage message : request.messages()) {
             ObjectNode node = messages.addObject();
+            // OpenAI 协议角色为小写字符串，这里由枚举名转小写。
             node.put("role", message.role().name().toLowerCase());
+            // content 为 null 时补空串，避免部分服务端拒绝缺字段的消息。
             node.put("content", message.content() == null ? "" : message.content());
             if (message.toolCallId() != null) {
                 node.put("tool_call_id", message.toolCallId());
@@ -100,6 +127,7 @@ public final class OpenAiCompatProvider implements LlmProvider {
                 ObjectNode function = tool.putObject("function");
                 function.put("name", spec.name());
                 function.put("description", spec.description());
+                // 将 Map 形式的 JSON Schema 转为树节点后嵌入，避免重复字符串化。
                 function.set("parameters", mapper.valueToTree(spec.parameters()));
             }
         }
@@ -111,9 +139,16 @@ public final class OpenAiCompatProvider implements LlmProvider {
                 .build();
     }
 
+    /**
+     * 逐行解析 SSE 流，累加正文/思考/工具调用片段，结尾回调完整响应。
+     * <p>SSE 每行以 "data:" 开头；[DONE] 表示结束。思考内容与正文各用一个累加器，
+     * 供最终拼装完整 ChatResponse；工具调用按 index 分段（一个调用被切成多片），
+     * 用 TreeMap 按 index 归并后再按序拼装。任一行损坏即抛 MyccException 由外层转 onError。
+     */
     private void parseStream(InputStream input, StreamSink sink) {
         StringBuilder content = new StringBuilder();
         StringBuilder reasoningContent = new StringBuilder();
+        // index -> 工具调用累加器；TreeMap 保证按 index 有序输出。
         Map<Integer, ToolCallBuilder> toolCallBuilders = new TreeMap<>();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
@@ -130,6 +165,7 @@ public final class OpenAiCompatProvider implements LlmProvider {
                 if (choices.isEmpty()) {
                     continue;
                 }
+                // 每个 SSE data 通常含单个 choice，其 delta 为本次增量。
                 JsonNode delta = choices.get(0).path("delta");
                 String deltaReasoningContent = delta.path("reasoning_content").asText(null);
                 String deltaContent = delta.path("content").asText(null);
@@ -145,6 +181,8 @@ public final class OpenAiCompatProvider implements LlmProvider {
                 for (JsonNode toolCall : delta.path("tool_calls")) {
                     int index = toolCall.path("index").asInt();
                     ToolCallBuilder builder = toolCallBuilders.computeIfAbsent(index, i -> new ToolCallBuilder());
+                    // id/name 通常只在首个分片出现，后续分片仅含 arguments 增量，
+                    // 故需判空累加。
                     if (toolCall.has("id") && !toolCall.get("id").isNull()) {
                         builder.id = toolCall.path("id").asText();
                     }
@@ -164,6 +202,7 @@ public final class OpenAiCompatProvider implements LlmProvider {
         sink.onComplete(new ChatResponse(content.toString(), reasoningContent.toString(), toolCalls));
     }
 
+    /** 单个工具调用的流式累加器：id/name 首片赋值，arguments 逐片拼接。 */
     private static final class ToolCallBuilder {
         String id;
         String name;

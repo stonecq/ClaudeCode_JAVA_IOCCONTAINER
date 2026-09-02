@@ -10,9 +10,15 @@ import java.lang.annotation.Target;
 @Target(ElementType.METHOD)
 public @interface Tool {
 
-    /** 工具名，全局唯一，供 LLM 调用。 */
+    /**
+     * 工具名，全局唯一，供 LLM 在 tool use 时作为函数名精确调用。
+     * 值不允许为 null 或空白，且不可与其它工具重名，否则注册时抛异常。
+     */
     String name();
 
-    /** 工具功能描述，会注入 LLM 的工具 Schema。 */
+    /**
+     * 工具功能描述，会注入 LLM 的工具 Schema（parameters.description）。
+     * 该描述是 LLM 决定何时使用本工具的主要依据，应清晰说明用途与适用场景。
+     */
     String description();
 }

@@ -10,30 +10,75 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * IoC 容器门面：注册 BeanDefinition、启动（预创建全部单例）、按类型取 Bean、统一关闭。
- * 具体实现 {@link DefaultIocContainer} 委托 {@link BeanFactory}。
+ * IoC 容器门面：对 {@link BeanFactory} 的简化包装，对外提供统一的
+ * 注册 → 启动 → 取 Bean → 关闭 生命周期入口。
+ * 具体实现 {@link DefaultIocContainer}（同文件、包私有）委托 {@link BeanFactory}，
+ * 并额外持有 {@link AnnotationScanner}（包扫描注册）与 {@link ToolRegistry}
+ * （作为 BeanPostProcessor 在启动时自动捕获所有 @Tool 方法）。
+ * 面向接口编程：调用方仅依赖本接口，不依赖具体实现。
  */
 public interface IocContainer {
 
+    /**
+     * 注册一批 BeanDefinition（手动注册方式）。
+     *
+     * @param definitions 待注册的 Bean 定义；不允许包含 null
+     */
     void register(BeanDefinition... definitions);
 
+    /**
+     * 扫描指定包（含子包）下所有 @Component 类并注册为 BeanDefinition。
+     *
+     * @param basePackage 待扫描的根包路径，如 com.learn.mycc
+     */
     void register(String basePackage);
 
+    /**
+     * 直接按类型注册为 Bean（快捷方式，等价于逐个 BeanDefinition.from）。
+     *
+     * @param types 待注册的组件类型；不允许为 null
+     */
     void register(Class<?>... types);
 
+    /**
+     * 注册 bean 后置处理器，将对之后创建的每个 bean 生效。
+     *
+     * @param processor 后置处理器实例
+     */
     void addBeanPostProcessor(BeanPostProcessor processor);
 
+    /** 启动容器：预创建全部已注册的单例（依赖会在期间递归创建）。 */
     void start();
 
+    /**
+     * 按类型取单例 Bean，未创建则即时创建。
+     *
+     * @param type 目标类型
+     * @param <T>  目标类型
+     * @return 单例实例
+     */
     <T> T getBean(Class<T> type);
 
+    /**
+     * 按运行时类型收集所有已创建的单例。
+     *
+     * @param type 目标接口/超类型
+     * @param <T>  目标类型
+     * @return 匹配类型的单例列表，可能为空
+     */
     <T> List<T> getBeansOfType(Class<T> type);
 
-    /** 容器内置的工具注册表（自动捕获所有 @Tool 方法）。 */
+    /** 容器内置的工具注册表（自动捕获所有 @Tool 方法，按注册顺序）。 */
     ToolRegistry getToolRegistry();
 
+    /** 关闭容器：按创建逆序销毁 DisposableBean 并清空缓存。 */
     void close();
 
+    /**
+     * 工厂方法：创建默认 IoC 容器实现。
+     *
+     * @return 新的 {@link DefaultIocContainer}
+     */
     static IocContainer create() {
         return new DefaultIocContainer();
     }
@@ -41,11 +86,17 @@ public interface IocContainer {
 
 final class DefaultIocContainer implements IocContainer {
 
+    /** 底层 Bean 工厂，承担全部实例化、注入与生命周期逻辑。 */
     private final BeanFactory beanFactory = new BeanFactory();
+
+    /** 类路径扫描器，用于 register(String basePackage) 时的 @Component 发现。 */
     private final AnnotationScanner scanner = new AnnotationScanner(Thread.currentThread().getContextClassLoader());
+
+    /** 工具注册表，注册为 BeanPostProcessor 以在 bean 创建后自动捕获 @Tool。 */
     private final ToolRegistry toolRegistry = new ToolRegistry();
 
     DefaultIocContainer() {
+        // 将工具注册表作为后置处理器挂入工厂：每个 bean 创建完成即可被扫描
         beanFactory.addBeanPostProcessor(toolRegistry);
     }
 

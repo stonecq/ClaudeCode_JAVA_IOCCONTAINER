@@ -10,9 +10,15 @@ import java.lang.annotation.Target;
 @Target(ElementType.PARAMETER)
 public @interface ToolParam {
 
-    /** 参数说明，注入 Schema 的 description。 */
+    /**
+     * 参数说明，注入 Schema 对应参数的 description，用于指导 LLM 如何填值。
+     * 默认空字符串表示不写 description；允许为空。
+     */
     String description() default "";
 
-    /** 是否必填。 */
+    /**
+     * 是否必填：为 true 时该参数会进入 JSON Schema 的 required 数组。
+     * 默认 true（工具参数默认必须由 LLM 提供，除非显式置为 false 表示可选）。
+     */
     boolean required() default true;
 }

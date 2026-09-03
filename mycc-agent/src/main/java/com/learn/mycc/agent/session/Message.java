@@ -1,5 +1,6 @@
 package com.learn.mycc.agent.session;
 
+import com.learn.mycc.agent.tool.ToolResult;
 import com.learn.mycc.ai.model.ChatMessage;
 import com.learn.mycc.ai.model.ToolCall;
 

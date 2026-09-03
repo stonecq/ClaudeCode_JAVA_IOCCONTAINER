@@ -36,7 +36,7 @@ public final class HookRegistry implements BeanPostProcessor {
         for (Method method : bean.getClass().getDeclaredMethods()) {
             Hook hook = method.getAnnotation(Hook.class);
             if (hook != null) {
-                register(new HookDefinition(HookEventType.fromName(hook.event()), bean, method));
+                register(new HookDefinition(hook.event(), bean, method));
             }
         }
         return bean;

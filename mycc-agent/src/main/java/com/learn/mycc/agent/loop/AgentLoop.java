@@ -13,6 +13,7 @@ import com.learn.mycc.ai.model.ToolSpec;
 import com.learn.mycc.ai.spi.LlmProvider;
 import com.learn.mycc.ai.spi.StreamSink;
 import com.learn.mycc.core.exception.MyccException;
+import com.learn.mycc.core.hook.HookDecision;
 import com.learn.mycc.core.hook.HookDispatcher;
 import com.learn.mycc.core.hook.HookEvent;
 import com.learn.mycc.core.hook.HookEventType;
@@ -135,8 +136,12 @@ public final class AgentLoop {
      *         Provider 出错时返回错误信息（同时以 ERROR 事件下发）
      */
     public String run(String userMessage) {
+        // SESSION_START 只在“新建空会话”触发一次：续聊恢复的历史会话不再宣告会话开始。
+        // 判断须在 addMessage 之前，否则追加首条消息后 isEmpty() 恒为 false。
+        if (session.isEmpty()) {
+            dispatchHook(HookEventType.SESSION_START, null);
+        }
         session.addMessage(Message.user(userMessage));
-        dispatchHook(HookEventType.SESSION_START, null);
         dispatchHook(HookEventType.USER_PROMPT_SUBMIT, userMessage);
         try {
             // 有工具调用则继续下一轮，否则视为最终回答，输出正文并结束。
@@ -219,9 +224,17 @@ public final class AgentLoop {
         session.addMessage(Message.assistant(content, toolCalls));
         emit(OutputEventType.TOOL_CALL, formatToolCalls(toolCalls));
         for (ToolCall call : toolCalls) {
-            dispatchHook(HookEventType.TOOL_CALL_BEFORE, call.name());
+            // tool_call_before 可否决：订阅者拒绝则跳过执行，把拦截原因作为 tool 结果回填给 LLM，
+            // 且不再派发 tool_call_after（工具并未执行）。
+            HookDecision decision = dispatchDecision(HookEventType.TOOL_CALL_BEFORE, call);
+            if (!decision.allowed()) {
+                String denied = "被钩子拦截: " + decision.reason();
+                session.addMessage(Message.tool(call.id(), denied));
+                emit(OutputEventType.TOOL_RESULT, call.id() + " => " + denied);
+                continue;
+            }
             ToolResult result = executor.execute(call);
-            dispatchHook(HookEventType.TOOL_CALL_AFTER, call.name());
+            dispatchHook(HookEventType.TOOL_CALL_AFTER, call);
             session.addMessage(Message.tool(call.id(), result.output()));
             emit(OutputEventType.TOOL_RESULT, result.callId() + " => " + result.output());
         }
@@ -241,9 +254,17 @@ public final class AgentLoop {
     }
 
     /** 派发一个钩子事件；hooks 为 null（未装配钩子）时静默跳过。 */
-    private void dispatchHook(HookEventType type, String payload) {
+    private void dispatchHook(HookEventType type, Object payload) {
         if (hooks != null) {
             hooks.dispatch(new HookEvent(type, session.id(), payload));
         }
+    }
+
+    /** 派发一个可否决的钩子事件；未装配钩子时视为放行。 */
+    private HookDecision dispatchDecision(HookEventType type, Object payload) {
+        if (hooks == null) {
+            return HookDecision.ALLOW;
+        }
+        return hooks.dispatch(new HookEvent(type, session.id(), payload));
     }
 }

@@ -2,6 +2,7 @@ package com.learn.mycc.agent.loop.fixture;
 
 import com.learn.mycc.core.annotation.Hook;
 import com.learn.mycc.core.hook.HookEvent;
+import com.learn.mycc.core.hook.HookEventType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,32 +16,32 @@ public class HookRecorder {
         EVENTS.clear();
     }
 
-    @Hook(event = "session_start")
+    @Hook(event = HookEventType.SESSION_START)
     public void onSessionStart(HookEvent event) {
         EVENTS.add(event.type().eventName());
     }
 
-    @Hook(event = "session_end")
+    @Hook(event = HookEventType.SESSION_END)
     public void onSessionEnd(HookEvent event) {
         EVENTS.add(event.type().eventName());
     }
 
-    @Hook(event = "user_prompt_submit")
+    @Hook(event = HookEventType.USER_PROMPT_SUBMIT)
     public void onUserPromptSubmit(HookEvent event) {
         EVENTS.add(event.type().eventName());
     }
 
-    @Hook(event = "tool_call_before")
+    @Hook(event = HookEventType.TOOL_CALL_BEFORE)
     public void onToolCallBefore(HookEvent event) {
         EVENTS.add(event.type().eventName());
     }
 
-    @Hook(event = "tool_call_after")
+    @Hook(event = HookEventType.TOOL_CALL_AFTER)
     public void onToolCallAfter(HookEvent event) {
         EVENTS.add(event.type().eventName());
     }
 
-    @Hook(event = "error")
+    @Hook(event = HookEventType.ERROR)
     public void onError(HookEvent event) {
         EVENTS.add(event.type().eventName());
     }

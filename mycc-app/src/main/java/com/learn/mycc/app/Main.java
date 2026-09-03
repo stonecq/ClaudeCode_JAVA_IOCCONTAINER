@@ -11,6 +11,7 @@ import com.learn.mycc.cli.command.ResumeCommand;
 import com.learn.mycc.cli.command.SessionsCommand;
 import com.learn.mycc.cli.command.ToolsCommand;
 import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.core.hook.HookDispatcher;
 import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.storage.file.FileStorage;
 import org.jline.reader.LineReader;
@@ -57,8 +58,10 @@ public final class Main {
                 boolean ansi = CliPort.supportsAnsi(terminal);
                 CliPort port = new CliPort(terminal.writer(), ansi, showReasoning);
                 LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
+                // 钩子派发器：装配容器扫描到的 @Hook（含 WorkspacePaths 工作区路径校验），agent 循环据此拦截
+                HookDispatcher dispatcher = new HookDispatcher(container.getHookRegistry());
                 CliContext ctx = new CliContext(store, container.getToolRegistry(), provider,
-                        new ConfigService(), "deepseek-v4-flash", 10, port, reader);
+                        new ConfigService(), "deepseek-v4-flash", 10, port, reader, dispatcher);
                 int code = new CommandLine(new MyccCommand(ctx))
                         .addSubcommand("resume", new ResumeCommand(ctx))
                         .addSubcommand("sessions", new SessionsCommand(ctx))

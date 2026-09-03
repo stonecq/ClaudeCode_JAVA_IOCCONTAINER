@@ -1,5 +1,6 @@
 package com.learn.mycc.core.annotation;
 
+import com.learn.mycc.core.hook.HookEventType;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,7 +26,7 @@ class AnnotationMetadataTest {
         var method = SampleTool.class.getMethod("onEvent");
         Hook hook = method.getAnnotation(Hook.class);
         assertThat(hook).isNotNull();
-        assertThat(hook.event()).isEqualTo("session_start");
+        assertThat(hook.event()).isEqualTo(HookEventType.SESSION_START);
     }
 
     @Test
@@ -40,7 +41,7 @@ class AnnotationMetadataTest {
             return "hi " + name;
         }
 
-        @Hook(event = "session_start")
+        @Hook(event = HookEventType.SESSION_START)
         public void onEvent() {
         }
     }

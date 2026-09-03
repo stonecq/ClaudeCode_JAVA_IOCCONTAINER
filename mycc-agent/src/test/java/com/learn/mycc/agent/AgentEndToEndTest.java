@@ -7,6 +7,7 @@ import com.learn.mycc.ai.model.ChatRequest;
 import com.learn.mycc.ai.model.ChatResponse;
 import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.ai.provider.MockProvider;
+import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.tools.FileTools;
 import com.learn.mycc.ui.OutputEventType;
@@ -29,7 +30,7 @@ class AgentEndToEndTest {
     @Test
     void writeThenReadMultiTurn() throws IOException {
         ToolRegistry registry = new ToolRegistry();
-        registry.postProcessAfterInitialization(new FileTools(workspace), "fileTools");
+        registry.postProcessAfterInitialization(new FileTools(new ApplicationConfig(workspace)), "fileTools");
 
         MockProvider provider = MockProvider.scripted(request -> {
             long toolMessages = request.messages().stream()

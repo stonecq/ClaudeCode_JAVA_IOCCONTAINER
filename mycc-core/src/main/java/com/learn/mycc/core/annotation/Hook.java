@@ -1,23 +1,25 @@
 package com.learn.mycc.core.annotation;
 
+import com.learn.mycc.core.hook.HookEventType;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 标记一个方法为生命周期钩子（v2 启用，本期仅定义注解，不注册不执行）。
- * 事件命名见 PRD FR-8：session_start / session_end / tool_call_before /
- * tool_call_after / error / user_prompt_submit。
+ * 标记一个方法为生命周期钩子（v2 启用）。
+ * 事件由 {@link HookEventType} 枚举强类型声明，避免了手写事件字符串的拼写风险，
+ * 未知事件在编译期即被拒绝（无需运行时校验）。
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)
 public @interface Hook {
 
     /**
-     * 订阅的事件名。
-     * 取值来自 PRD FR-8 定义的事件集合（session_start / session_end / tool_call_before /
-     * tool_call_after / error / user_prompt_submit）；不允许为空字符串。
+     * 订阅的事件类型。
+     * 取值见 {@link HookEventType}（session_start / session_end / tool_call_before /
+     * tool_call_after / error / user_prompt_submit）。
      */
-    String event();
+    HookEventType event();
 }

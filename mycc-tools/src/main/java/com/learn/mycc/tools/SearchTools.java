@@ -3,6 +3,7 @@ package com.learn.mycc.tools;
 import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Tool;
 import com.learn.mycc.core.annotation.ToolParam;
+import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.core.exception.MyccException;
 
 import java.io.IOException;
@@ -19,33 +20,20 @@ import java.util.stream.Stream;
  * 搜索工具：glob / grep / search_files，遍历范围限定在工作区内。
  *
  * <p>职责边界：提供三种检索能力，分别对应按命名模式找文件、按正则匹配行、
- * 按关键字子串找文件；所有遍历起始根都由 {@link WorkspacePaths} 校验在
- * 工作区内，防止越界访问。返回的空结果统一以 {@link #NO_MATCH} 表示，方便
- * agent 直接区分"有/无"而无需解析空串。</p>
+ * 按关键字子串找文件；所有遍历起始根都以工作区（{@link ApplicationConfig#getWorkspacePath()}
+ * 解析，越界路径由 tool_call_before 钩子拦截，工具内部不再重复校验。返回的空结果
+ * 统一以 {@link #NO_MATCH} 表示，方便 agent 直接区分"有/无"而无需解析空串。</p>
  */
 @Component
 public final class SearchTools {
+    private final ApplicationConfig config;
+
+    public SearchTools(ApplicationConfig config) {
+        this.config = config;
+    }
 
     /** 无匹配结果时对外返回的占位文案，避免返回空串让 agent 误判为"指令未执行"。 */
     private static final String NO_MATCH = "无匹配结果";
-
-    /** 工作区路径解析器，负责相对路径校验，保证搜索不越出工作区。 */
-    private final WorkspacePaths paths;
-
-    /**
-     * 以指定目录为工作区创建搜索工具。
-     *
-     * @param workspaceRoot 工作区根目录；会被归一化为绝对路径
-     */
-    public SearchTools(Path workspaceRoot) {
-        this.paths = new WorkspacePaths(workspaceRoot);
-    }
-
-    /** 容器创建用：默认以当前目录为工作区（应用启动时的运行目录）。 */
-    public SearchTools() {
-        this(Path.of("").toAbsolutePath());
-    }
-
     /**
      * 按 glob 模式遍历工作区，列出所有匹配的普通文件（相对路径、排序、斜杠分隔）。
      *
@@ -64,9 +52,9 @@ public final class SearchTools {
         }
         PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + pattern);
         List<String> found = new ArrayList<>();
-        try (Stream<Path> stream = Files.walk(paths.root())) {
+        try (Stream<Path> stream = Files.walk(config.getWorkspacePath())) {
             stream.filter(Files::isRegularFile)
-                    .map(paths.root()::relativize)
+                    .map(config.getWorkspacePath()::relativize)
                     .filter(matcher::matches)
                     .map(SearchTools::toSlashPath)
                     .sorted()
@@ -127,7 +115,7 @@ public final class SearchTools {
         try (Stream<Path> stream = Files.walk(searchRoot(path))) {
             stream.filter(Files::isRegularFile)
                     .filter(file -> fileContains(file, query))
-                    .map(paths.root()::relativize)
+                    .map(config.getWorkspacePath()::relativize)
                     .map(SearchTools::toSlashPath)
                     .sorted()
                     .forEach(found::add);
@@ -146,9 +134,9 @@ public final class SearchTools {
      */
     private Path searchRoot(String path) {
         if (path == null || path.isBlank()) {
-            return paths.root();
+            return config.getWorkspacePath();
         }
-        Path resolved = paths.resolve(path);
+        Path resolved = config.getWorkspacePath().resolve(path);
         if (!Files.exists(resolved)) {
             throw new MyccException("路径不存在: " + path);
         }
@@ -174,7 +162,7 @@ public final class SearchTools {
             for (int i = 0; i < allLines.size(); i++) {
                 // 用 find() 而非 matches()：只要行中任一部分命中即算命中，符合 grep 语义
                 if (pattern.matcher(allLines.get(i)).find()) {
-                    lines.add(toSlashPath(paths.root().relativize(file)) + ":" + (i + 1) + ": " + allLines.get(i));
+                    lines.add(toSlashPath(config.getWorkspacePath().relativize(file)) + ":" + (i + 1) + ": " + allLines.get(i));
                 }
             }
         } catch (IOException e) {

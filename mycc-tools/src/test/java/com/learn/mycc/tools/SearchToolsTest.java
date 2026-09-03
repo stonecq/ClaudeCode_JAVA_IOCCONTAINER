@@ -1,5 +1,6 @@
 package com.learn.mycc.tools;
 
+import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.core.exception.MyccException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,7 @@ class SearchToolsTest {
     }
 
     private SearchTools tool() {
-        return new SearchTools(workspace);
+        return new SearchTools(new ApplicationConfig(workspace));
     }
 
     @Test
@@ -70,13 +71,6 @@ class SearchToolsTest {
     void searchScopesToGivenDirectory() {
         assertThat(tool().searchFiles("foo", "README.md")).contains("README.md");
         assertThat(tool().searchFiles("foo", "README.md")).doesNotContain("src/b.txt");
-    }
-
-    @Test
-    void rejectsTraversalPath() {
-        assertThatThrownBy(() -> tool().grep("x", "../.."))
-                .isInstanceOf(MyccException.class)
-                .hasMessageContaining("超出工作区");
     }
 
     @Test

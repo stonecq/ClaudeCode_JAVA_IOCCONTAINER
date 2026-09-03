@@ -21,6 +21,7 @@
         <module>mycc-agent</module>
         <module>mycc-cli</module>
         <module>mycc-app</module>
+        <module>mycc-hooks</module>
     </modules>
 
     <properties>

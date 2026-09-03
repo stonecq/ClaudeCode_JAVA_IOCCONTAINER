@@ -1,5 +1,6 @@
 package com.learn.mycc.tools;
 
+import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.core.exception.MyccException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,7 +18,7 @@ class FileToolsTest {
     Path workspace;
 
     private FileTools tool() {
-        return new FileTools(workspace);
+        return new FileTools(new ApplicationConfig(workspace));
     }
 
     @Test
@@ -48,28 +49,5 @@ class FileToolsTest {
         assertThatThrownBy(() -> tool().readFile("missing.txt"))
                 .isInstanceOf(MyccException.class)
                 .hasMessageContaining("不存在");
-    }
-
-    @Test
-    void rejectsTraversal() throws IOException {
-        Files.writeString(workspace.resolve("secret.txt"), "secret");
-        assertThatThrownBy(() -> tool().readFile("../secret.txt"))
-                .isInstanceOf(MyccException.class)
-                .hasMessageContaining("超出工作区");
-    }
-
-    @Test
-    void rejectsWriteTraversal() {
-        assertThatThrownBy(() -> tool().writeFile("../../evil.txt", "x"))
-                .isInstanceOf(MyccException.class)
-                .hasMessageContaining("超出工作区");
-    }
-
-    @Test
-    void rejectsAbsolutePath() throws IOException {
-        Files.writeString(workspace.resolve("f.txt"), "hi");
-        assertThatThrownBy(() -> tool().readFile(workspace.resolve("f.txt").toString()))
-                .isInstanceOf(MyccException.class)
-                .hasMessageContaining("绝对路径");
     }
 }

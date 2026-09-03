@@ -3,7 +3,6 @@ package com.learn.mycc.core.hook;
 import com.learn.mycc.core.bean.BeanDefinition;
 import com.learn.mycc.core.bean.BeanFactory;
 import com.learn.mycc.core.exception.MyccException;
-import com.learn.mycc.core.hook.fixture.BadEventHook;
 import com.learn.mycc.core.hook.fixture.BadSignatureHook;
 import com.learn.mycc.core.hook.fixture.RecordingHook;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,18 +39,6 @@ class HookRegistryTest {
         assertThat(registry.get(HookEventType.TOOL_CALL_BEFORE))
                 .extracting(HookDefinition::getEventType)
                 .containsExactly(HookEventType.TOOL_CALL_BEFORE);
-    }
-
-    @Test
-    void rejectsUnknownEventName() {
-        BeanFactory factory = new BeanFactory();
-        HookRegistry registry = new HookRegistry();
-        factory.addBeanPostProcessor(registry);
-        factory.register(BeanDefinition.from(BadEventHook.class));
-
-        assertThatThrownBy(() -> factory.getBean(BadEventHook.class))
-                .isInstanceOf(MyccException.class)
-                .hasMessageContaining("未知钩子事件");
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.learn.mycc.core.hook.fixture;
 import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Hook;
 import com.learn.mycc.core.hook.HookEvent;
+import com.learn.mycc.core.hook.HookEventType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,17 +18,17 @@ public class RecordingHook {
         EVENTS.clear();
     }
 
-    @Hook(event = "session_start")
+    @Hook(event = HookEventType.SESSION_START)
     public void onSessionStart(HookEvent event) {
         EVENTS.add(event);
     }
 
-    @Hook(event = "session_start")
+    @Hook(event = HookEventType.SESSION_START)
     public void onSessionStartAgain(HookEvent event) {
         EVENTS.add(event);
     }
 
-    @Hook(event = "tool_call_before")
+    @Hook(event = HookEventType.TOOL_CALL_BEFORE)
     public void onToolCallBefore(HookEvent event) {
         EVENTS.add(event);
     }

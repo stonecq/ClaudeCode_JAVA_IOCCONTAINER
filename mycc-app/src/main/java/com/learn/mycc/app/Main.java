@@ -5,15 +5,20 @@ import com.learn.mycc.ai.model.ModelConfig;
 import com.learn.mycc.ai.provider.OpenAiCompatProvider;
 import com.learn.mycc.cli.CliContext;
 import com.learn.mycc.cli.CliPort;
+import com.learn.mycc.cli.ReplLoop;
 import com.learn.mycc.cli.command.ConfigCommand;
 import com.learn.mycc.cli.command.MyccCommand;
 import com.learn.mycc.cli.command.ResumeCommand;
 import com.learn.mycc.cli.command.SessionsCommand;
 import com.learn.mycc.cli.command.ToolsCommand;
+import com.learn.mycc.cli.repl.CliPermissionPrompt;
 import com.learn.mycc.core.context.IocContainer;
 import com.learn.mycc.core.hook.HookDispatcher;
+import com.learn.mycc.core.permission.PermissionPolicy;
+import com.learn.mycc.hooks.PermissionHook;
 import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.storage.file.FileStorage;
+import com.learn.mycc.storage.permission.JsonPermissionRuleStore;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.terminal.Terminal;
@@ -58,7 +63,16 @@ public final class Main {
                 boolean ansi = CliPort.supportsAnsi(terminal);
                 CliPort port = new CliPort(terminal.writer(), ansi, showReasoning);
                 LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
-                // 钩子派发器：装配容器扫描到的 @Hook（含 WorkspacePaths 工作区路径校验），agent 循环据此拦截
+                // 权限审批钩子：规则存储（容器装配，落盘 .mycc/permissions.json）+ 纯决策策略
+                // + 终端 [y/N/a] 交互。手工注册（postProcessAfterInitialization）以绕过容器扫描，
+                // 从而注入 CLI 专属的 CliPermissionPrompt（PermissionHook 本就不是 @Component）
+                JsonPermissionRuleStore ruleStore = container.getBean(JsonPermissionRuleStore.class);
+                PermissionHook permissionHook = new PermissionHook(
+                        container.getToolRegistry(), ruleStore, new PermissionPolicy(),
+                        new CliPermissionPrompt(ReplLoop.fromLineReader(reader), out));
+                container.getHookRegistry().postProcessAfterInitialization(permissionHook, "permissionHook");
+                // 钩子派发器：装配容器扫描到的 @Hook（含 WorkspacePaths 工作区路径校验）与手工注册的
+                // PermissionHook 权限审批，agent 循环据此拦截
                 HookDispatcher dispatcher = new HookDispatcher(container.getHookRegistry());
                 CliContext ctx = new CliContext(store, container.getToolRegistry(), provider,
                         new ConfigService(), "deepseek-v4-flash", 10, port, reader, dispatcher);

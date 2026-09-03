@@ -21,4 +21,10 @@ public @interface Tool {
      * 该描述是 LLM 决定何时使用本工具的主要依据，应清晰说明用途与适用场景。
      */
     String description();
+
+    /**
+     * 工具风险等级，默认 {@link ToolRisk#LOW}。HIGH 工具（bash、写文件等）
+     * 的调用默认触发审批，规则文件可按工具覆盖。
+     */
+    ToolRisk risk() default ToolRisk.LOW;
 }

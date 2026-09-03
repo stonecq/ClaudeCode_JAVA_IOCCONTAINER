@@ -4,6 +4,7 @@ import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Inject;
 import com.learn.mycc.core.annotation.Tool;
 import com.learn.mycc.core.annotation.ToolParam;
+import com.learn.mycc.core.annotation.ToolRisk;
 import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.core.exception.MyccException;
 
@@ -51,7 +52,7 @@ public final class FileTools {
      * @return 固定提示字符串，形如 {@code "已写入: <path>"}
      * @throws MyccException 路径非法或写入失败（IOException）时抛出
      */
-    @Tool(name = "write_file", description = "写入文件内容（覆盖，父目录自动创建）")
+    @Tool(name = "write_file", description = "写入文件内容（覆盖，父目录自动创建）", risk = ToolRisk.HIGH)
     public String writeFile(@ToolParam(description = "工作区内相对路径") String path,
                             @ToolParam(description = "要写入的内容") String content) {
         Path filePath = config.getWorkspacePath().resolve(path);
@@ -77,7 +78,7 @@ public final class FileTools {
      * @return 固定提示字符串，形如 {@code "已编辑: <path>"}
      * @throws MyccException 路径非法、未找到旧文本或读写文件失败时抛出
      */
-    @Tool(name = "edit_file", description = "用新文本替换文件中首次出现的旧文本")
+    @Tool(name = "edit_file", description = "用新文本替换文件中首次出现的旧文本", risk = ToolRisk.HIGH)
     public String editFile(@ToolParam(description = "工作区内相对路径") String path,
                            @ToolParam(description = "要被替换的旧文本") String oldString,
                            @ToolParam(description = "替换后的新文本") String newString) {

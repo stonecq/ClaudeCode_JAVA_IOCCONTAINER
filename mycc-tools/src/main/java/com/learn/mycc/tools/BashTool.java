@@ -3,6 +3,7 @@ package com.learn.mycc.tools;
 import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Tool;
 import com.learn.mycc.core.annotation.ToolParam;
+import com.learn.mycc.core.annotation.ToolRisk;
 import com.learn.mycc.core.exception.MyccException;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public final class BashTool {
      * @return stdout / stderr / exitCode 的执行结果，命令执行完必返回，结果字段可能为空串
      * @throws MyccException 命令为空白、启动进程失败（IOException）或被中断时抛出
      */
-    @Tool(name = "bash", description = "执行 shell 命令，返回 stdout / stderr / 退出码")
+    @Tool(name = "bash", description = "执行 shell 命令，返回 stdout / stderr / 退出码", risk = ToolRisk.HIGH)
     public BashResult bash(@ToolParam(description = "要执行的 shell 命令") String command) {
         if (command == null || command.isBlank()) {
             throw new MyccException("命令不能为空");

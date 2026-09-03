@@ -173,4 +173,16 @@ class SessionStoreTest {
         assertThat(store.list()).extracting(SessionStore.SessionSummary::title)
                 .containsExactly("第二问");
     }
+
+    @Test
+    void listSummaryCarriesLastModifiedTimestamp() throws IOException {
+        SessionStore store = new SessionStore(new FileStorage(tempDir));
+        Session session = Session.create();
+        session.addMessage(Message.user("hi"));
+        store.save(session);
+        Files.setLastModifiedTime(tempDir.resolve("session").resolve(session.id() + ".json"), FileTime.fromMillis(1234L));
+
+        SessionStore.SessionSummary summary = store.list().get(0);
+        assertThat(summary.lastModified()).isEqualTo(1234L);
+    }
 }

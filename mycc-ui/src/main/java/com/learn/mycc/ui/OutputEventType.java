@@ -7,6 +7,8 @@ package com.learn.mycc.ui;
  * 覆盖/结束等）。</p>
  */
 public enum OutputEventType {
+    /** 用户输入回合：实时对话的用户提问（提示符取代）或历史回放的用户消息，payload 为用户输入文本 */
+    USER,
     /** 思考过程：agent 的推理内容，通常可折叠或与正式回复分开展示 */
     THINKING,
     /** 流式正文增量：回复正文的一段，UI 通常持续追加拼接 */

@@ -46,7 +46,7 @@
 ```
 mycc-storage(mycc-agent 依赖的数据源)   ← lastModified() + SessionStore.list()
         └─ mycc-agent(session/聊天机制) ← AgentLoop 显式会话绑定（去自动恢复）
-              └─ mycc-app(UI 编排)      ← SessionMenu + AgentDemoApp 接入
+              └─ mycc-app(UI 编排)      ← SessionPicker/SessionReplayer + AgentDemoApp 接入
 ```
 
 ### 3.1 数据层（mycc-storage / mycc-agent）
@@ -58,21 +58,15 @@ mycc-storage(mycc-agent 依赖的数据源)   ← lastModified() + SessionStore.
   - `record SessionSummary(String id, String title)`——`title` 为会话最后一条 USER 消息。
   - `List<SessionSummary> list()`——从 `storage.keys()` 过滤出 `session/<id>.json`（`session/latest` 指针自动被排除），按 `lastModified` **倒序**排列，每项 title 取该会话最后一条 `role == USER` 的 `content`；若该会话无 USER 消息则 title 用 `（空对话）` 占位。
 
-### 3.2 UI 层（mycc-app 新增 `SessionMenu`）
+### 3.2 UI 层（历史回放与实时渲染走同一事件协议）
 
-新类 `com.learn.mycc.app.SessionMenu`（持 `SessionStore`、`PrintStream out`、`BufferedReader in`），两个方法：
+为让「历史里看到的样子」与「当时实时看到的样子」一致、且未来换 UI / 上 Web 时不重复实现，历史回放与实时渲染共用 `OutputEvent` 协议：
 
-- **`Session select()`**：
-  1. 取 `store.list()`；若为空直接返回 `Session.create()`（调用方此时不应再显示菜单）。
-  2. 打印标题行 + 编号列表：`1. {title}`…`{n}. 新的对话`，title 超 20 字截断加 `…`（Java `String` 截断，字节安全可后置处理，暂时按 `codePointCount` 截断避免切坏代理对）。
-  3. 读一行输入：数字走对应项——`1..n-1` 调用 `store.load(id)` 返回已加载会话；`n` 返回 `Session.create()`。
-  4. 非法输入（非数字 / 越界 / 空）提示 `无效选择，请重新输入` 并**重新读取**；`readLine()` 返回 null（Ctrl+D）视为选择「新的对话」。
-  5. `load` 返回空的兜底：提示后当新对话处理（防御，正常不会触发）。
-- **`void printHistory(Session session)`**：按消息顺序打印，四种角色标记——
-  - USER：`我 > {content}`
-  - ASSISTANT 带工具调用：先 `[工具] {name(args); …}`（多条用 `; ` 连接，与 `AgentLoop.formatToolCalls` 同格式），再 `助手 > {content}`（空正文不打印该行）
-  - TOOL（工具结果）：`[结果] {output}`
-  - 空会话打印 `（新会话）`。
+- **`OutputEventType` 新增 `USER` 事件**：实时对话的用户提问与历史回放的用户消息统一为 `USER` 事件，`ConsolePort` 渲染 `我 > {content}`。
+- **mycc-agent 新增 `SessionPicker` 接口**：`Session selectMenu(SessionStore store)`。依赖倒置——接口定义在选择方（agent 侧），实现落在渲染方（UI 侧），使上层应用只面向接口、不关心具体 UI 实现。
+- **mycc-agent 新增 `SessionReplayer`**：把已持久化的历史 `Message` 序列回放为与实时一致的事件流（`USER` / `TOOL_CALL` / `TOOL_RESULT` / `TOKEN` / `DONE`）；工具调用文本用共享的 `ToolCallFormatter` 格式化（与 `AgentLoop` 实时一致），避免重复实现。
+- **`ConsolePort` 实现双端口 `InteractionPort` + `SessionPicker`**：吸收菜单选择（`selectMenu`：编号列表 + 约 20 字 codepoint 安全截断 + 「新的对话」末位项 + 非法输入重读 + Ctrl+D 兜底）；`ConsolePort` 新增 3 参构造注入 `BufferedReader in`。
+- **`SessionMenu` 删除**（其职责并入 `ConsolePort.selectMenu/truncate` 与 `SessionReplayer`），对应 `SessionMenuTest` 并入 `ConsolePortTest`。
 
 ### 3.3 装配层（mycc-agent + mycc-app）
 
@@ -82,9 +76,9 @@ mycc-storage(mycc-agent 依赖的数据源)   ← lastModified() + SessionStore.
   - `withToolRegistry` 新增 7 参重载（`port, provider, toolRegistry, model, maxIterations, storage, session`）承载上述显式绑定；**原 6 参 storage-only 重载删除**（其自动恢复语义被本次设计取代）。
   - `run()` 的 `finally { storage.save(session) }` 落盘行为不变。
 - **`AgentDemoApp` 编排**：
-  1. 取 `store.list()`：为空 → `Session.create()`；非空 → `SessionMenu.select()`。
-  2. `printHistory(session)` 打印所选历史。
-  3. 以显式 session 构造 `AgentLoop`，进入原有聊天循环；每轮 `run` 结束照旧落盘。
+  1. 取 `store.list()`：为空 → `Session.create()`；非空 → 经 `SessionPicker.selectMenu(store)`（实现为 ConsolePort）选择。
+  2. 用 `SessionReplayer.replay(session, port)` 把历史回放为与实时一致的事件流。
+  3. 以显式 session 构造 `AgentLoop`，进入原有聊天循环；每轮用户输入先以 `USER` 事件交给渲染端口再驱动 agent，每轮 `run` 结束照旧落盘。
 
 ---
 
@@ -102,7 +96,8 @@ mycc-storage(mycc-agent 依赖的数据源)   ← lastModified() + SessionStore.
 | --- | --- |
 | FileStorage | 写入后 `lastModified` 有值且单调不减；不存在的 key 返回空 |
 | SessionStore | `list()` 按最后修改倒序；title=最后一条 USER 消息；无 USER 消息用 `（空对话）`；`session/latest` 指针不入列；空目录返回空列表 |
-| SessionMenu | 选历史编号 → 返回已加载会话；选「新的对话」；非法输入重读后成功；Ctrl+D → 新会话 |
+| ConsolePort | `USER` 事件渲染 `我 > `；思考块隐藏/开启/收块；`selectMenu` 选历史/「新的对话」/非法重读/Ctrl+D/标题截断；未注入输入流抛异常（`SessionMenuTest` 并入） |
+| SessionReplayer | 完整历史回放为 USER/TOOL_CALL/TOOL_RESULT/TOKEN/DONE；工具调用文本走 `ToolCallFormatter`；sessionId/seq 从 0 绑定；空会话仅 DONE；空白助手内容跳过 |
 | AgentLoop | 显式传 session 后 `session()` 用该会话；移除自动恢复后仅 6 参构造建新会话 |
 | AgentLoopPersistence | 改 `resumesLatestSessionOnConstructionAndContinues` → 显式传入 `old` 会话，语义从「自动恢复」改为「显式续聊」 |
 
@@ -112,17 +107,22 @@ mycc-storage(mycc-agent 依赖的数据源)   ← lastModified() + SessionStore.
 
 | 文件 | 动作 |
 | --- | --- |
+| `mycc-ui/.../ui/OutputEventType.java` | 新增 `USER` 事件类型（实时提问与历史回放统一渲染） |
 | `mycc-storage/.../spi/Storage.java` | 加 `lastModified(String)` |
 | `mycc-storage/.../file/FileStorage.java` | 实现 `lastModified` |
 | `mycc-agent/.../storage/SessionStore.java` | 加 `SessionSummary` + `list()` |
 | `mycc-agent/.../loop/AgentLoop.java` | 去自动恢复，新增显式 session 构造/工厂 |
-| `mycc-app/.../app/SessionMenu.java` | 新增 |
-| `mycc-app/.../app/AgentDemoApp.java` | 接入菜单 + 打印历史 + 显式绑定 |
-| 对应测试文件 | 新增 / 更新（见第 5 节） |
+| `mycc-agent/.../session/SessionPicker.java` | 新增（历史会话选择端口，依赖倒置） |
+| `mycc-agent/.../loop/SessionReplayer.java` | 新增（历史回放为与实时一致的事件流） |
+| `mycc-agent/.../loop/ToolCallFormatter.java` | 新增（历史/实时工具调用文本统一格式） |
+| `mycc-app/.../app/ConsolePort.java` | 实现 `InteractionPort` + `SessionPicker` 双端口，吸收菜单选择与标题截断 |
+| `mycc-app/.../app/SessionMenu.java` | 删除（职责并入 ConsolePort + SessionReplayer） |
+| `mycc-app/.../app/AgentDemoApp.java` | 经 `SessionPicker` 选会话、`SessionReplayer` 回放历史、实时输入以 `USER` 事件渲染 |
+| 对应测试文件 | 新增 / 更新（见第 5 节；`SessionMenuTest` 并入 `ConsolePortTest`） |
 
 ---
 
 ## 7. 验证
 
-- `mvn clean install` 全绿（现 106 测试 + 新增，目标不回归）。
-- 手动跑 `AgentDemoApp`：造两段历史 → 重启验证菜单出现、选择后历史打印、续聊上下文正确。
+- `mvn clean install` 全绿（126 用例 = 28 core + 21 tools + 10 ai + 21 storage + 34 agent + 12 app，目标不回归）。
+- 手动跑 `AgentDemoApp`：造两段历史 → 重启经 `SessionPicker` 弹菜单选择、`SessionReplayer` 回放历史后续聊，上下文正确。

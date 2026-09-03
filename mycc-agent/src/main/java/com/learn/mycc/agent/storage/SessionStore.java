@@ -62,8 +62,8 @@ public final class SessionStore {
 
 
     /** 会话列表摘要：仅含展示用信息，避免加载整段历史；
-     *  {@code title} 取最后一条用户消息。 */
-    public record SessionSummary(String id, String title) {}
+     *  {@code title} 取最后一条用户消息，{@code lastModified} 为存储修改时间（epoch 毫秒）。 */
+    public record SessionSummary(String id, String title, long lastModified) {}
 
 
     /** @return 所有已存会话的摘要列表，按最后修改时间倒序（最新在前）；
@@ -73,7 +73,7 @@ public final class SessionStore {
         return storage.keys().stream()
                 .filter(k -> k.startsWith(PREFIX) && k.endsWith(SUFFIX))
                 .sorted(Comparator.comparing((String k) -> storage.lastModified(k).orElse(0L)).reversed())
-                .map(k -> new SessionSummary(idOf(k), lastUserMessageOf(sessionOf(idOf(k)))))
+                .map(k -> new SessionSummary(idOf(k), lastUserMessageOf(sessionOf(idOf(k))), storage.lastModified(k).orElse(0L)))
                 .toList();
     }
 

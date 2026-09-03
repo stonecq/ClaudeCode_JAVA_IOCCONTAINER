@@ -3,6 +3,7 @@ package com.learn.mycc.core.context;
 import com.learn.mycc.core.bean.BeanDefinition;
 import com.learn.mycc.core.bean.BeanFactory;
 import com.learn.mycc.core.bean.BeanPostProcessor;
+import com.learn.mycc.core.hook.HookRegistry;
 import com.learn.mycc.core.scan.AnnotationScanner;
 import com.learn.mycc.core.tool.ToolRegistry;
 
@@ -13,8 +14,8 @@ import java.util.List;
  * IoC 容器门面：对 {@link BeanFactory} 的简化包装，对外提供统一的
  * 注册 → 启动 → 取 Bean → 关闭 生命周期入口。
  * 具体实现 {@link DefaultIocContainer}（同文件、包私有）委托 {@link BeanFactory}，
- * 并额外持有 {@link AnnotationScanner}（包扫描注册）与 {@link ToolRegistry}
- * （作为 BeanPostProcessor 在启动时自动捕获所有 @Tool 方法）。
+ * 并额外持有 {@link AnnotationScanner}（包扫描注册）、{@link ToolRegistry} 与
+ * {@link HookRegistry}（均作为 BeanPostProcessor 在启动时自动捕获 @Tool/@Hook 方法）。
  * 面向接口编程：调用方仅依赖本接口，不依赖具体实现。
  */
 public interface IocContainer {
@@ -71,6 +72,9 @@ public interface IocContainer {
     /** 容器内置的工具注册表（自动捕获所有 @Tool 方法，按注册顺序）。 */
     ToolRegistry getToolRegistry();
 
+    /** 容器内置的钩子注册表（自动捕获所有 @Hook 方法，按事件类型分组）。 */
+    HookRegistry getHookRegistry();
+
     /** 关闭容器：按创建逆序销毁 DisposableBean 并清空缓存。 */
     void close();
 
@@ -95,9 +99,13 @@ final class DefaultIocContainer implements IocContainer {
     /** 工具注册表，注册为 BeanPostProcessor 以在 bean 创建后自动捕获 @Tool。 */
     private final ToolRegistry toolRegistry = new ToolRegistry();
 
+    /** 钩子注册表，注册为 BeanPostProcessor 以在 bean 创建后自动捕获 @Hook。 */
+    private final HookRegistry hookRegistry = new HookRegistry();
+
     DefaultIocContainer() {
-        // 将工具注册表作为后置处理器挂入工厂：每个 bean 创建完成即可被扫描
+        // 将工具/钩子注册表作为后置处理器挂入工厂：每个 bean 创建完成即可被扫描
         beanFactory.addBeanPostProcessor(toolRegistry);
+        beanFactory.addBeanPostProcessor(hookRegistry);
     }
 
     @Override
@@ -139,6 +147,11 @@ final class DefaultIocContainer implements IocContainer {
     @Override
     public ToolRegistry getToolRegistry() {
         return toolRegistry;
+    }
+
+    @Override
+    public HookRegistry getHookRegistry() {
+        return hookRegistry;
     }
 
     @Override

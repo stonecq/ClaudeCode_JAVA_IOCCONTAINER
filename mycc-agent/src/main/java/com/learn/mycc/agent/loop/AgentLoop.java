@@ -13,6 +13,9 @@ import com.learn.mycc.ai.model.ToolSpec;
 import com.learn.mycc.ai.spi.LlmProvider;
 import com.learn.mycc.ai.spi.StreamSink;
 import com.learn.mycc.core.exception.MyccException;
+import com.learn.mycc.core.hook.HookDispatcher;
+import com.learn.mycc.core.hook.HookEvent;
+import com.learn.mycc.core.hook.HookEventType;
 import com.learn.mycc.core.tool.ParameterSchemaGenerator;
 import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.ui.InteractionPort;
@@ -26,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Agent 主循环：多轮调 LLM → 有工具调用则执行并回填消息历史 → 无工具调用则输出最终正文结束。
  * 只通过 {@link InteractionPort} 下发 {@link OutputEvent}；工具失败回填给 LLM，不崩会话。
  * 可选注入 {@link SessionStore}：注入后每轮 {@link #run} 结束落盘，会话由调用方显式绑定。
+ * 可选注入 {@link HookDispatcher}：注入后在生命周期/工具/错误关键点派生 {@link HookEvent}。
  */
 public final class AgentLoop {
 
@@ -46,6 +50,8 @@ public final class AgentLoop {
     private final Session session;
     /** 会话存储；null 表示不持久化（不落盘）。 */
     private final SessionStore storage;
+    /** 钩子派发器；null 表示不触发钩子（保持向后兼容）。 */
+    private final HookDispatcher hooks;
     /** 事件序号计数器，从 0 递增，用于标识事件顺序；仅单线程 run 内安全递增。 */
     private long seq = 0;
 
@@ -67,6 +73,16 @@ public final class AgentLoop {
      */
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session) {
+        this(port, provider, executor, tools, model, maxIterations, storage, session, null);
+    }
+
+    /**
+     * 全量构造（含钩子）。
+     * @param hooks 钩子派发器；null 表示不触发钩子
+     */
+    public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
+                     List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session,
+                     HookDispatcher hooks) {
         this.port = port;
         this.provider = provider;
         this.executor = executor;
@@ -75,6 +91,7 @@ public final class AgentLoop {
         this.maxIterations = maxIterations;
         this.storage = storage;
         this.session = session;
+        this.hooks = hooks;
     }
 
     /** 从工具注册表装配：不持久化、新建会话。 */
@@ -87,12 +104,19 @@ public final class AgentLoop {
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations,
                                              SessionStore storage, Session session) {
+        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, storage, session, null);
+    }
+
+    /** 从工具注册表装配并绑定指定会话与钩子派发器；storage/hooks 均可为 null。 */
+    public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
+                                             ToolRegistry toolRegistry, String model, int maxIterations,
+                                             SessionStore storage, Session session, HookDispatcher hooks) {
         ParameterSchemaGenerator schemaGenerator = new ParameterSchemaGenerator();
         List<ToolSpec> specs = toolRegistry.getAll().stream()
                 .map(definition -> new ToolSpec(definition.getName(), definition.getDescription(),
                         schemaGenerator.generate(definition.getMethod())))
                 .toList();
-        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage, session);
+        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage, session, hooks);
     }
 
     public Session session() {
@@ -112,6 +136,8 @@ public final class AgentLoop {
      */
     public String run(String userMessage) {
         session.addMessage(Message.user(userMessage));
+        dispatchHook(HookEventType.SESSION_START, null);
+        dispatchHook(HookEventType.USER_PROMPT_SUBMIT, userMessage);
         try {
             // 有工具调用则继续下一轮，否则视为最终回答，输出正文并结束。
             // 用迭代上限而非 while(true) 兜底，防止工具反复调用导致死循环。
@@ -133,9 +159,11 @@ public final class AgentLoop {
         } catch (MyccException e) {
             // Provider 层错误：ERROR 事件告知调用方并作为返回值，不抛出以免调用栈复杂化。
             emit(OutputEventType.ERROR, e.getMessage());
+            dispatchHook(HookEventType.ERROR, e.getMessage());
             return e.getMessage();
         } finally {
-            // 无论如何（含异常与提前结束）均尝试落盘，避免上下文丢失。
+            // 无论如何（含异常与提前结束）均派发会话结束钩子并尝试落盘，避免上下文丢失。
+            dispatchHook(HookEventType.SESSION_END, null);
             if (storage != null) {
                 storage.save(session);
             }
@@ -191,7 +219,9 @@ public final class AgentLoop {
         session.addMessage(Message.assistant(content, toolCalls));
         emit(OutputEventType.TOOL_CALL, formatToolCalls(toolCalls));
         for (ToolCall call : toolCalls) {
+            dispatchHook(HookEventType.TOOL_CALL_BEFORE, call.name());
             ToolResult result = executor.execute(call);
+            dispatchHook(HookEventType.TOOL_CALL_AFTER, call.name());
             session.addMessage(Message.tool(call.id(), result.output()));
             emit(OutputEventType.TOOL_RESULT, result.callId() + " => " + result.output());
         }
@@ -208,5 +238,12 @@ public final class AgentLoop {
     /** 统一事件出口：包成 {@link OutputEvent} 下发，并附带自增序号 seq 标识顺序。 */
     private void emit(OutputEventType type, String payload) {
         port.onEvent(new OutputEvent(type, payload, session.id(), seq++));
+    }
+
+    /** 派发一个钩子事件；hooks 为 null（未装配钩子）时静默跳过。 */
+    private void dispatchHook(HookEventType type, String payload) {
+        if (hooks != null) {
+            hooks.dispatch(new HookEvent(type, session.id(), payload));
+        }
     }
 }

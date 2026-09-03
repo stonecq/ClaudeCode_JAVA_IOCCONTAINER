@@ -1,5 +1,7 @@
 # v1 开发计划（执行步骤）
 
+> ✅ **v1 已完成（2026-09-02）**：M1–M6 全部验收通过，126 测试全绿，`java -jar mycc-app/target/mycc-app.jar` 可交互运行。后续工作见 `docs/plans/2026-09-03-v2-development-plan.md`。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: 使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务执行。任务用 `- [ ]` 勾选跟踪。
 
 **Goal:** 完成 v1 骨架——自研 IoC + `@Tool` 工具系统 + agent 循环 + 可插拔 LLM(Mock) + 存储抽象 + CLI，形成一个可运行、可验证、可扩展的简易版 Claude Code。
@@ -194,9 +196,9 @@
 
 ---
 
-## v1 完成定义（DoD）
+## v1 完成定义（DoD）✅ 已达成（2026-09-02）
 
-- [ ] M1-M6 全部验收通过，测试全绿。
-- [ ] `java -jar mycc-app.jar` 可交互运行完整会话。
-- [ ] 新增一个界面 = 新增一个模块实现 `InteractionPort` 并在 `mycc-app` 绑定（已验证扩展点成立）。
-- [ ] 开发日志按日更新；git 历史清晰（每阶段一个提交）。
+- [x] M1-M6 全部验收通过，测试全绿。
+- [x] `java -jar mycc-app.jar` 可交互运行完整会话。
+- [x] 新增一个界面 = 新增一个模块实现 `InteractionPort` 并在 `mycc-app` 绑定（已验证扩展点成立）。
+- [x] 开发日志按日更新；git 历史清晰（每阶段一个提交）。

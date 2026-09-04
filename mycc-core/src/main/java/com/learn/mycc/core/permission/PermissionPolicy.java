@@ -1,5 +1,6 @@
 package com.learn.mycc.core.permission;
 
+import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.ToolRisk;
 
 /**
@@ -8,6 +9,7 @@ import com.learn.mycc.core.annotation.ToolRisk;
  * HIGH 风险询问、LOW 风险放行。core 保持纯机制层——本类不知道
  * ToolCall 等具体类型，按工具名字符串决策。</p>
  */
+@Component
 public final class PermissionPolicy {
 
     /**

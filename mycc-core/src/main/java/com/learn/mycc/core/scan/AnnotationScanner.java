@@ -1,6 +1,7 @@
 package com.learn.mycc.core.scan;
 
 import com.learn.mycc.core.annotation.Component;
+import com.learn.mycc.core.annotation.Configuration;
 import com.learn.mycc.core.bean.BeanDefinition;
 import com.learn.mycc.core.exception.MyccException;
 
@@ -64,8 +65,11 @@ public final class AnnotationScanner {
         } catch (IOException e) {
             throw new MyccException("扫描包失败: " + basePackage, e);
         }
-        // 先收集全部 class 再统一按 @Component 过滤：与扫描来源（目录/jar）解耦过滤逻辑
-        return classes.stream().filter(c -> c.isAnnotationPresent(Component.class)).toList();
+        // 先收集全部 class 再统一过滤：与扫描来源（目录/jar）解耦过滤逻辑。
+        // @Configuration 虽以 @Component 为元注解，但 isAnnotationPresent 不穿越元注解，需显式匹配。
+        return classes.stream()
+                .filter(c -> c.isAnnotationPresent(Component.class) || c.isAnnotationPresent(Configuration.class))
+                .toList();
     }
 
     /**

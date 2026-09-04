@@ -26,6 +26,7 @@
 | 文档 | 路径 | 说明 |
 | --- | --- | --- |
 | 设计规范 | `design/design-standards.md` | 模块边界、包结构、扩展点、异常与流式约定 |
+| mycc-core 开发指南 | `design/mycc-core.md` | 模块内 IoC 容器 / 扫码 / 注册表机制的入门详解 |
 
 ## 规范
 

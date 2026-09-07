@@ -1,5 +1,7 @@
 package com.learn.mycc.core.hook;
 
+import com.learn.mycc.core.annotation.Component;
+import com.learn.mycc.core.annotation.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +12,7 @@ import org.slf4j.LoggerFactory;
  * 可否决事件（如 tool_call_before）的订阅者可返回 {@link HookDecision}：任一订阅者
  * 拒绝即整体短路为拒绝；普通 void 钩子仍按观察者执行，不影响决策。
  */
+@Component
 public final class HookDispatcher {
 
     private static final Logger log = LoggerFactory.getLogger(HookDispatcher.class);
@@ -18,6 +21,7 @@ public final class HookDispatcher {
     private final HookRegistry registry;
 
     /** @param registry 钩子注册表，不允许为 null */
+    @Inject
     public HookDispatcher(HookRegistry registry) {
         this.registry = registry;
     }

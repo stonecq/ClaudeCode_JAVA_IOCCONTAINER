@@ -2,6 +2,7 @@ package com.learn.mycc.cli.command;
 
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.cli.CliContext;
+import com.learn.mycc.core.annotation.Component;
 import picocli.CommandLine.Command;
 
 import java.util.concurrent.Callable;
@@ -11,6 +12,7 @@ import java.util.concurrent.Callable;
  */
 @Command(name = "mycc", mixinStandardHelpOptions = true,
         description = "mycc 会话 CLI：裸命令新建会话进入交互；resume/sessions/tools/config 见子命令")
+@Component
 public final class MyccCommand implements Callable<Integer> {
 
     private final CliContext ctx;

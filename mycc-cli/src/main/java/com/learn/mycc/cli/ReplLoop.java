@@ -1,5 +1,9 @@
 package com.learn.mycc.cli;
 
+import com.learn.mycc.core.annotation.Component;
+import com.learn.mycc.core.annotation.Inject;
+import com.learn.mycc.core.annotation.Scope;
+import com.learn.mycc.core.annotation.ScopeType;
 import com.learn.mycc.ui.OutputEvent;
 import com.learn.mycc.ui.OutputEventType;
 import org.jline.reader.LineReader;
@@ -9,10 +13,14 @@ import java.io.IOException;
 /**
  * 交互主循环：读行 → 以 USER 事件回显 → 驱动 agent 一轮；逐轮异常容忍，不崩会话。
  * <p>
- * 通过两个函数式缝与外界解耦：{@link LineInput} 供生产接 JLine LineReader、测试接
- * BufferedReader；{@link AgentRunner} 供生产接 {@code agent::run}、测试注入抛异常 lambda。
- * 斜杠命令：/exit 结束；/clear 清屏（仅 ANSI 可用时有效）。EOF（Ctrl+D）结束循环。
+ * 原型 {@link Component}：每轮交互由容器 {@code getBean(ReplLoop.class, port, agent::run,
+ * input, sessionId)} 全参覆盖创建（port/runner/input/sessionId 为调用侧绑定值，不入容器）。
+ * 通过两个函数式缝解耦：{@link LineInput} 供生产接 JLine LineReader、测试接 BufferedReader；
+ * {@link AgentRunner} 供生产接 {@code agent::run}、测试注入抛异常 lambda。
+ * 斜杠命令：/exit 结束；/clear 清屏（仅 ANSI 可用时有效）。EOF（Ctrl+D）结束循环。</p>
  */
+@Component
+@Scope(ScopeType.PROTOTYPE)
 public final class ReplLoop {
 
     /** 一行输入来源；返回 null 表示 EOF（Ctrl+D）。 */
@@ -32,6 +40,7 @@ public final class ReplLoop {
     private final LineInput input;
     private final String sessionId;
 
+    @Inject
     public ReplLoop(CliPort port, AgentRunner runner, LineInput input, String sessionId) {
         this.port = port;
         this.runner = runner;

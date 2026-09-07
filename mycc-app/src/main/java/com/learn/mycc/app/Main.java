@@ -1,39 +1,23 @@
 package com.learn.mycc.app;
 
-import com.learn.mycc.agent.storage.SessionStore;
-import com.learn.mycc.ai.model.ModelConfig;
-import com.learn.mycc.ai.provider.OpenAiCompatProvider;
-import com.learn.mycc.cli.CliContext;
 import com.learn.mycc.cli.CliPort;
-import com.learn.mycc.cli.ReplLoop;
 import com.learn.mycc.cli.command.ConfigCommand;
 import com.learn.mycc.cli.command.MyccCommand;
 import com.learn.mycc.cli.command.ResumeCommand;
 import com.learn.mycc.cli.command.SessionsCommand;
 import com.learn.mycc.cli.command.ToolsCommand;
-import com.learn.mycc.cli.repl.CliPermissionPrompt;
 import com.learn.mycc.core.context.IocContainer;
-import com.learn.mycc.core.hook.HookDispatcher;
-import com.learn.mycc.core.permission.PermissionPolicy;
-import com.learn.mycc.hooks.PermissionHook;
-import com.learn.mycc.storage.config.ConfigService;
-import com.learn.mycc.storage.file.FileStorage;
-import com.learn.mycc.storage.permission.JsonPermissionRuleStore;
-import org.jline.reader.LineReader;
-import org.jline.reader.LineReaderBuilder;
-import org.jline.terminal.Terminal;
-import org.jline.terminal.TerminalBuilder;
 import picocli.CommandLine;
 
-import java.io.IOException;
 import java.io.PrintWriter;
 
 /**
- * v1 启动器（M6）：只装配并绑定 mycc-cli，然后执行 picocli 命令。
+ * v1 启动器（M6，Spring 化重构 S2）：装配根只做「开容器 → start → 执行命令 → close」。
  * <p>
- * 流程：装配 IoC 容器 → 取 ToolRegistry → 按 OPENCODE_KEY 构建 provider（仅进入对话的
- * mycc/resume 缺 key 时引导退出非 0，只读命令免 key）→ 建 SessionStore / 终端 / CliPort /
- * REPL 输入 → 组装 CliContext → 注册子命令执行。
+ * 全部实例（终端/Provider/存储/钩子/命令）都由容器纳管：构造 {@link MyccApplication} 即
+ * create + register，显式 {@code start()} 预创建单例（prototype 按需），picocli 命令从容器
+ * {@code getBean} 取得。仅聊天命令（裸 mycc / resume）缺 OPENCODE_KEY 时预检引导退出非 0，
+ * 只读命令（--help/sessions/tools/config）免 key。
  * shade 打包后 {@code java -jar mycc-app/target/mycc-app.jar} 即可运行。
  */
 public final class Main {
@@ -41,68 +25,43 @@ public final class Main {
     private Main() {
     }
 
-    public static void main(String[] args) throws IOException {
-        // dumb(true)：非 TTY（管道/重定向/IDE）回落为 dumb 终端而不抛异常，保证降级可用
-        try (Terminal terminal = TerminalBuilder.builder().system(true).dumb(true).build()) {
-            PrintWriter out = terminal.writer();
-            MyccApplication application = new MyccApplication("com.learn.mycc");
-            IocContainer container = application.getIocContainer();
-            try {
-                OpenAiCompatProvider provider = openCodeDsProvider(out);
-                // 只读命令（--help/sessions/tools/config）不构造 AgentLoop、不调用 LLM，无 key 仍可用；
-                // 仅进入对话的裸 mycc / resume 需要 LLM，缺 key 时输出引导提示后退出非 0
-                boolean needsLlm = args.length == 0 || "resume".equals(args[0]);
-                if (needsLlm && provider == null) {
-                    out.flush();
-                    System.exit(1);
-                    return;
-                }
-                SessionStore store = new SessionStore(FileStorage.defaultDirectory());
-                boolean showReasoning = Boolean.parseBoolean(new ConfigService().get("showReasoning", "true"));
-                // 非 TTY 降级：dumb 终端 → 关闭 ANSI，纯文本输出
-                boolean ansi = CliPort.supportsAnsi(terminal);
-                CliPort port = new CliPort(terminal.writer(), ansi, showReasoning);
-                LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
-                // 权限审批钩子：规则存储（容器装配，落盘 .mycc/permissions.json）+ 纯决策策略
-                // + 终端 [y/N/a] 交互。手工注册（postProcessAfterInitialization）以绕过容器扫描，
-                // 从而注入 CLI 专属的 CliPermissionPrompt（PermissionHook 本就不是 @Component）
-                JsonPermissionRuleStore ruleStore = container.getBean(JsonPermissionRuleStore.class);
-                PermissionHook permissionHook = new PermissionHook(
-                        container.getToolRegistry(), ruleStore, new PermissionPolicy(),
-                        new CliPermissionPrompt(ReplLoop.fromLineReader(reader), out));
-                container.getHookRegistry().postProcessAfterInitialization(permissionHook, "permissionHook");
-                // 钩子派发器：装配容器扫描到的 @Hook（含 WorkspacePaths 工作区路径校验）与手工注册的
-                // PermissionHook 权限审批，agent 循环据此拦截
-                HookDispatcher dispatcher = new HookDispatcher(container.getHookRegistry());
-                CliContext ctx = new CliContext(store, container.getToolRegistry(), provider,
-                        new ConfigService(), "deepseek-v4-flash", 10, port, reader, dispatcher);
-                int code = new CommandLine(new MyccCommand(ctx))
-                        .addSubcommand("resume", new ResumeCommand(ctx))
-                        .addSubcommand("sessions", new SessionsCommand(ctx))
-                        .addSubcommand("tools", new ToolsCommand(ctx))
-                        .addSubcommand("config", new ConfigCommand(ctx))
-                        .execute(args);
-                // JLine terminal.writer() 为缓冲 PrintWriter，System.exit 不触发 close/autoflush，
-                // 需在退出前显式 flush，否则 sessions/tools/config 等只 println 的命令输出会丢失
+    public static void main(String[] args) {
+        MyccApplication application = new MyccApplication();
+        IocContainer container = application.getIocContainer();
+        try {
+            application.start();
+            // 只读命令不构造 AgentLoop、不调用 LLM，无 key 仍可用；仅进入对话的裸 mycc / resume
+            // 需要 LLM，缺 key 时输出引导提示后退出非 0
+            boolean needsLlm = args.length == 0 || "resume".equals(args[0]);
+            if (needsLlm && missingKey()) {
+                PrintWriter out = container.getBean(CliPort.class).writer();
+                out.println("未设置环境变量 OPENCODE_KEY，无法接入 openCode。");
+                out.println("示例：OPENCODE_KEY=sk-xxx java -jar mycc-app/target/mycc-app.jar");
                 out.flush();
-                System.exit(code);
-            } finally {
                 container.close();
+                System.exit(1);
+                return;
             }
+            int code = new CommandLine(container.getBean(MyccCommand.class))
+                    .addSubcommand("resume", container.getBean(ResumeCommand.class))
+                    .addSubcommand("sessions", container.getBean(SessionsCommand.class))
+                    .addSubcommand("tools", container.getBean(ToolsCommand.class))
+                    .addSubcommand("config", container.getBean(ConfigCommand.class))
+                    .execute(args);
+            // JLine PrintWriter 为缓冲输出，System.exit 不触发 close/autoflush，须先显式 flush
+            PrintWriter out = container.getBean(CliPort.class).writer();
+            out.flush();
+            container.close();
+            System.exit(code);
+        } finally {
+            // 异常路径（start/execute 失败）兜底销毁；normal 路径已 close，close 幂等
+            container.close();
         }
     }
 
-    /**
-     * 依据环境变量 OPENCODE_KEY 构造 openCode 兼容网关的 provider。
-     * key 缺失或空白时输出引导提示并返回 null；key 只存在进程环境，不写入代码与日志。
-     */
-    private static OpenAiCompatProvider openCodeDsProvider(PrintWriter out) {
+    /** 环境变量 OPENCODE_KEY 缺失或空白即视为不可用；key 只存在于进程环境，不进代码与日志。 */
+    private static boolean missingKey() {
         String apiKey = System.getenv("OPENCODE_KEY");
-        if (apiKey == null || apiKey.isBlank()) {
-            out.println("未设置环境变量 OPENCODE_KEY，无法接入 openCode。");
-            out.println("示例：OPENCODE_KEY=sk-xxx java -jar mycc-app/target/mycc-app.jar");
-            return null;
-        }
-        return new OpenAiCompatProvider(new ModelConfig(apiKey, "https://opencode.ai/zen/go/v1"));
+        return apiKey == null || apiKey.isBlank();
     }
 }

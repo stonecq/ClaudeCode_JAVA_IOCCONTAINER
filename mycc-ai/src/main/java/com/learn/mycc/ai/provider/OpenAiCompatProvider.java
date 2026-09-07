@@ -13,6 +13,8 @@ import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.ai.model.ToolSpec;
 import com.learn.mycc.ai.spi.LlmProvider;
 import com.learn.mycc.ai.spi.StreamSink;
+import com.learn.mycc.core.annotation.Component;
+import com.learn.mycc.core.annotation.Inject;
 import com.learn.mycc.core.exception.MyccException;
 
 import java.io.BufferedReader;

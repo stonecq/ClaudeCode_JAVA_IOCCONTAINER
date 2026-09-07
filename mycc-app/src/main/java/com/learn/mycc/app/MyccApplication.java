@@ -3,11 +3,11 @@ package com.learn.mycc.app;
 import com.learn.mycc.core.context.IocContainer;
 
 /**
- * v1 启动器（M6 完善为完整 REPL）：按基础包装配 IOC 容器并暴露给上层使用。
+ * IoC 装配根：只负责「创建容器 + 注册组件」，显式 {@link #start()} 触发单例预创建。
  * <p>
- * 职责边界：只负责「装配容器」这一件事，不掺入任何具体 UI 或业务逻辑。
- * 装配逻辑收敛到 {@link #assemble()}，构造后即可通过 {@link #getIocContainer()} 取用，
- * 便于 AgentDemoApp 等上层在启动时自定义装配结果。
+ * 职责边界：不掺入任何具体 UI 或业务逻辑。构造即 create + register（扫描根包下的 @Component
+ * 并展开 @Configuration 的 @Bean 工厂方法）；装配结果经 {@link #getIocContainer()} 取用，
+ * 上层（Main）在准备就绪后调用 {@link #start()}，便于先注册额外 Bean 再启动。
  */
 public final class MyccApplication {
 
@@ -41,16 +41,22 @@ public final class MyccApplication {
     }
 
     /**
-     * 完成容器的初始化三部曲：创建 → 按包注册组件 → 启动。
-     * 拆出独立方法是为让构造器简洁，未来追加更复杂的装配顺序也更易集中维护。
+     * 启动容器：预创建全部单例（依赖递归创建；prototype 按需创建）。
+     * 拆分自构造器——构造仅负责「创建 + 注册」，显式 start 让装配根（Main）掌控
+     * 启动时机，也为上层先注册额外 Bean 再启动留出窗口。
+     */
+    public void start() {
+        iocContainer.start();
+    }
+
+    /**
+     * 完成容器的装配：创建 → 按包注册组件。构造器专用；启动由 {@link #start()} 显式触发。
      *
-     * @return 装配并启动完成的容器
+     * @return 装配完成的容器，尚未启动
      */
     private IocContainer assemble() {
         IocContainer container = IocContainer.create();
         container.register(this.basePackage);
-        // start() 触发组件实例化与后置处理，失败会抛出异常并中止启动
-        container.start();
         return container;
     }
 }

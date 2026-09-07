@@ -1,6 +1,7 @@
 package com.learn.mycc.hooks;
 
 import com.learn.mycc.ai.model.ToolCall;
+import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Hook;
 import com.learn.mycc.core.annotation.ToolRisk;
 import com.learn.mycc.core.exception.MyccException;
@@ -17,11 +18,14 @@ import com.learn.mycc.core.tool.ToolRegistry;
 
 /**
  * 权限审批钩子：在 tool_call_before 上按风险评估工具调用并征询人工审批。
- * <p>手工构造（非 @Component）——由启动器把 CLI 专属的 {@link UserConfirmation} 注入进来，
- * 离开 IoC 扫描以避免容器无法构造该依赖。决策委托 {@link PermissionPolicy}（规则 > 风险默认）；
+ * <p>容器扫描组件（@Component）——依赖由容器按 4 参构造自动注入：{@link UserConfirmation}
+ * 按接口可匹配解析（完整 UI 环境由 {@code CliConfig} 的 @Bean 精确命中提供，裸容器回落
+ * {@code UnavailableUserConfirmation} fail-closed）。决策委托 {@link PermissionPolicy}
+ * （规则 > 风险默认）；
  * ASK 时经 confirm 征询，headless（confirm 为 null）或审批 UNAVAILABLE 一律 fail-closed 拒绝；
  * 未注册工具按 HIGH 兜底，宁可多问一层也不默认放行。SESSION_START 清空会话级规则缓存。</p>
  */
+@Component
 public final class PermissionHook {
 
     private final ToolRegistry registry;

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learn.mycc.agent.session.Message;
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.ai.model.ChatMessage;
+import com.learn.mycc.core.annotation.Component;
+import com.learn.mycc.core.annotation.Inject;
 import com.learn.mycc.core.exception.MyccException;
 import com.learn.mycc.storage.spi.Storage;
 
@@ -21,6 +23,7 @@ import java.util.Optional;
  * <p>职责边界：只负责"序列化 + 按 key 存取"，不感知消息具体语义，
  * 换存储后端仅换 {@link Storage} 实现即可。
  */
+@Component
 public final class SessionStore {
 
     /** key 前缀，区分不同命名空间；配合 {@link #SUFFIX} 用于 {@link #list} 过滤会话文件。 */
@@ -37,6 +40,7 @@ public final class SessionStore {
     private final ObjectMapper mapper = new ObjectMapper();
 
     /** @param storage 底层存储后端（文件/内存等），不可为 null。 */
+    @Inject
     public SessionStore(Storage storage) {
         this.storage = storage;
     }

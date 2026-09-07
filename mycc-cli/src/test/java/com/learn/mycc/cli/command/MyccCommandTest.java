@@ -1,14 +1,18 @@
 package com.learn.mycc.cli.command;
 
+import com.learn.mycc.agent.config.AgentConfig;
 import com.learn.mycc.agent.session.Message;
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.ai.provider.MockProvider;
+import com.learn.mycc.ai.spi.LlmProvider;
 import com.learn.mycc.cli.CliContext;
 import com.learn.mycc.cli.CliPort;
 import com.learn.mycc.cli.ReplLoop;
+import com.learn.mycc.cli.config.CliConfig;
+import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.core.hook.HookDispatcher;
 import com.learn.mycc.core.tool.ToolDefinition;
-import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.storage.file.FileStorage;
 import org.junit.jupiter.api.AfterEach;
@@ -58,14 +62,24 @@ class MyccCommandTest {
     }
 
     private CliContext newContext(String input, SessionStore store, ConfigService config) {
-        ToolRegistry registry = new ToolRegistry();
         MockProvider provider = new MockProvider(Map.of("你好", "好的"));
         CliPort port = new CliPort(out, false, true);
-        // 直注 seam：测试不构造 JLine 终端（真终端会抢 System.in，污染 surefire 管道），
+        // 直注输入：测试不用 JLine 终端（真终端会抢 System.in，污染 surefire 管道），
         // 用 BufferedReader + StringReader 把脚本当输入喂给 ReplLoop
         BufferedReader reader = new BufferedReader(new StringReader(input));
         ReplLoop.LineInput lineInput = () -> reader.readLine();
-        return new CliContext(store, registry, provider, config, "mock-model", 10, port, lineInput);
+
+        // 与生产同装配路径：建真实容器 + overrideSingleton 注入测试替身（临时存储/配置、
+        // StringWriter 输出、StringReader 输入、Mock provider），再经 CliContext @Component
+        // 字段注入取出——enterRepl 走的 getBean(AgentLoop/ReplLoop, args) 与生产完全一致
+        IocContainer container = IocContainer.create();
+        container.overrideSingleton(ConfigService.class, config);
+        container.overrideSingleton(SessionStore.class, store);
+        container.overrideSingleton(CliPort.class, port);
+        container.overrideSingleton(ReplLoop.LineInput.class, lineInput);
+        container.overrideSingleton(LlmProvider.class, provider);
+        container.register(CliContext.class, ReplLoop.class, HookDispatcher.class, AgentConfig.class, CliConfig.class);
+        return container.getBean(CliContext.class);
     }
 
     private int exec(CliContext ctx, String... args) {

@@ -68,6 +68,7 @@ public final class AnnotationScanner {
         // 先收集全部 class 再统一过滤：与扫描来源（目录/jar）解耦过滤逻辑。
         // @Configuration 虽以 @Component 为元注解，但 isAnnotationPresent 不穿越元注解，需显式匹配。
         return classes.stream()
+                .filter(c -> !c.isAnnotation() && !c.isInterface())
                 .filter(c -> c.isAnnotationPresent(Component.class) || c.isAnnotationPresent(Configuration.class))
                 .toList();
     }

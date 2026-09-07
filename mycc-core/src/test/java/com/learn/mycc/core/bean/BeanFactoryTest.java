@@ -101,9 +101,36 @@ class BeanFactoryTest {
     }
 
     @Test
+    void overrideSingletonShadowsExistingDefinition() {
+        BeanFactory factory = factoryWith(GreeterImplA.class);
+        GreeterImplA replacement = new GreeterImplA();
+        factory.overrideSingleton(GreeterImplA.class, replacement);
+        // getBean 优先返回覆盖实例而非定义实例化；接口可匹配也复用同一替代实例
+        assertThat(factory.getBean(GreeterImplA.class)).isSameAs(replacement);
+        assertThat(factory.getBean(Greeter.class)).isSameAs(replacement);
+    }
+
+    @Test
+    void overrideSingletonRejectsNull() {
+        BeanFactory factory = new BeanFactory();
+        assertThatThrownBy(() -> factory.overrideSingleton(GreeterImplA.class, null))
+                .isInstanceOf(MyccException.class)
+                .hasMessageContaining("不允许为 null");
+    }
+
+    @Test
     void getBeanMatchesUniqueAssignableImplementation() {
         BeanFactory factory = factoryWith(GreeterImplA.class);
         assertThat(factory.getBean(Greeter.class).greet()).isEqualTo("A");
+    }
+
+    @Test
+    void interfaceFallbackReusesExistingSingleton() {
+        BeanFactory factory = factoryWith(GreeterImplA.class);
+        GreeterImplA impl = factory.getBean(GreeterImplA.class);
+        factory.preInstantiateSingletons();
+        // 已按具体类型实例化后，接口回退应复用同一单例，而非再次实例化误判"多个可匹配"
+        assertThat(factory.getBean(Greeter.class)).isSameAs(impl);
     }
 
     @Test

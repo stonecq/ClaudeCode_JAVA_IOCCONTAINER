@@ -3,6 +3,8 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: 使用 superpowers:subagent-driven-development（推荐）或 superpowers:executing-plans 逐任务执行。任务用 `- [ ]` 勾选跟踪。
 >
 > v1（M1–M6）已完成，见 `docs/plans/2026-08-27-v1-development-plan.md`。本文为 v2（M7–M13）路线图，只细化首个里程碑 M7；其余里程碑在其启动时另写详细 design/plan（沿用 `docs/superpowers/` 模式）。
+>
+> **2026-09-07 更新（Spring 化重构 S0–S3 已完成）**：见 `docs/superpowers/specs/2026-09-04-spring-ioc-refactor-design.md`。容器补齐 `@Configuration`+`@Bean`、`@Scope(PROTOTYPE)`、`registerSingleton`、接口可匹配、按名查找；`Main` 瘦身为「开容器 → start → 执行命令 → close」。M9–M13 新增能力一律按此约定装配：无状态实现 `@Component`，运行时对象/接口返回类型在 `@Configuration` 里以 `@Bean` 声明，注册表用 `registerSingleton`。
 
 **Goal:** 在 v1 骨架之上补齐 7 项能力——Hook 系统 → 权限管理 → Memory 长期记忆 → Skill 技能 → Planning 规划 → Subagent 子代理 → Web 界面（Jetty + SSE），形成功能更完整、界面可插拔的简易版 Claude Code。
 

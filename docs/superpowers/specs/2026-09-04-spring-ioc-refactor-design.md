@@ -173,3 +173,32 @@
 - **@Bean 返回类型唯一性**：同一类型不得有两个 bean 定义（register 时 putIfAbsent 抛错）；当前无冲突。
 - 既有测试的**构造器/工厂全部保留**是硬约束，S1/S2 只增不改类签名（唯一例外：MyccApplication 加 `start()`）。
 - 扫描类路径扩到 `com.learn.mycc` 已含全部模块，无需改 basePackage。
+
+---
+
+## 10. 实施记录（S0–S3，2026-09-07 完成）
+
+### S0 容器能力（mycc-core）✅
+- 注解/BeanFactory/IocContainer/scanner 六项能力落地，`BeanFactoryTest` 20 用例、`IocContainerTest` 9 用例全绿（core 67）。
+
+### S1 权限/存储/钩子注解化 ✅
+- `HookDispatcher`/`PermissionHook`/`ConfigService`/`SessionStore` 加 `@Component`；`UnavailableUserConfirmation` 已随 S0 提交；新 `StorageConfig.@Bean FileStorage`。
+- `MyccApplication` 拆 `start()`；`Main` 删 PermissionHook 手工装配块，钩子从容器按类型取。
+- **暴露并修复 BeanFactory 缺陷**：`resolveAssignable` 对已按具体类型实例化的单例重复 `createBean` → 接口注入误报「多个可匹配」。改经 `getBean(具体类型)` 复用缓存，并新增 `BeanFactoryTest.interfaceFallbackReusesExistingSingleton` 回归。
+
+### S2 CLI/AI/Agent 装配迁移 ✅
+- 新 `AiConfig`（`@Bean LlmProvider`，缺 key→`UnavailableLlmProvider` 兜底）、`AgentConfig`（`@Bean @Scope(PROTOTYPE) agentLoop`）、`CliConfig`（Terminal/PrintWriter/LineReader/LineInput/CliPort/UserConfirmation/REPL/CliContext 全 @Bean）与 5 命令 `@Component`；`CliContext.setContainer` + enterRepl 容器分支；`Main` 全瘦身。
+- **偏差（相对本文）**：
+  1. AgentConfig 工厂形参用 `InteractionPort`（可落 CliPort）而非本文示例的 `CliPort`——`AgentLoop.withToolRegistry` 实际签名依赖 mycc-ui，agent 模块不依赖 cli。
+  2. `CliConfig.terminal()` 在 `System.console()==null` 时直接建 `DumbTerminal`——规避 JLine 在 Windows 无控制台探测原生终端 4-7s 延迟与线程残留（测试 31s 挂起 → 0.9s）。
+  3. model/maxIterations 缺省常量在 `CliConfig` 与 `AgentConfig` 各读一次（分属两模块，未抽公共常量）。
+
+### S3 文档 + 验收 ✅
+- `mvn clean install` 全量绿（含新增 app 回归），只读命令 jar 冒烟与缺 key 引导退出码 1 人工验证；交互 REPL 审批路径留待用户 TTY+key 环境复核（受环境限制，见 dev-log）。
+
+### S3 后续：消除装配双路径 + 注入替身能力（2026-09-07）
+- `overrideSingleton(Class, Object)`：写入单例缓存、`getBean` 优先返回，遮蔽已有定义；`registerSingleton` 维持严格冲突契约。等价 Spring `@MockBean`，供测试替身/运行时替换。
+- `CliContext.enterRepl` 收成**单一路径**（一律 `getBean(AgentLoop/ReplLoop, args)`，无手工直装分支）；`CliContext` 改纯 `@Component` + 字段注入（容器经 `@Inject IocContainer` 自引用），`CliConfig` 删去 `cliContext` @Bean。
+- `ReplLoop` 转 prototype `@Component @Scope(PROTOTYPE)`（`CliConfig` 删 `replLoop` @Bean）；AgentLoop 仍为 `AgentConfig` 的 `@Bean @Scope(PROTOTYPE)` 工厂（封装 via withToolRegistry 装配逻辑）。
+- 双 prototype 统一由「调用侧 `getBean(type, args)` 覆盖注入点」创建。
+- `MyccCommandTest` 迁移到「真实容器 + overrideSingleton 替身」：建容器 → 替身 {ConfigService/SessionStore/CliPort/LineInput/LlmProvider} → 注册 {CliContext, HookDispatcher, AgentConfig, CliConfig} → `getBean(CliContext)`；测试驱动与生产完全同装配路径。新增 `MyccApplicationTest.enterReplContainerPathWiresPrototypes` 把生产原型 wiring 纳入回归。

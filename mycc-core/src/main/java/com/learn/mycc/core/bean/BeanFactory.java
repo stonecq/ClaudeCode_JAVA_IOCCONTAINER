@@ -89,6 +89,23 @@ public class BeanFactory {
     }
 
     /**
+     * 覆盖注册一个外部实例（测试替身 / 运行时替换）：不论目标类型是否已有注册定义，
+     * 都写入单例缓存；getBean 优先返回本缓存，从而遮蔽定义的实例化。
+     * 与 {@link #registerSingleton} 的严格冲突契约区分——该能力专供测试等注入替身场景
+     * （等价 Spring 的 @MockBean / 显式 bean 覆盖）。
+     *
+     * @param type     被覆盖的键类型，不允许为 null
+     * @param instance 替身实例，不允许为 null
+     * @throws MyccException 实例为 null 时抛出
+     */
+    public void overrideSingleton(Class<?> type, Object instance) {
+        if (instance == null) {
+            throw new MyccException("overrideSingleton 实例不允许为 null: " + type.getName());
+        }
+        singletons.put(type, instance);
+    }
+
+    /**
      * 注册一个 BeanPostProcessor，将对之后创建的每个 bean 生效
      * （对标 Spring 的 bean 后置处理器）。
      *
@@ -288,7 +305,8 @@ public class BeanFactory {
             if (creating.contains(definition.getType())) {
                 continue;
             }
-            Object instance = createBean(definition);
+            // 经 getBean 复用已创建的单例（否则接口回退会重复实例化同类型，误判"多个可匹配"）
+            Object instance = getBean(definition.getType());
             if (seen.put(instance, Boolean.TRUE) == null) {
                 candidates.add(instance);
             }

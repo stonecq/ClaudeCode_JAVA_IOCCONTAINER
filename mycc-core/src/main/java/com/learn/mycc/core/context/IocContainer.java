@@ -58,6 +58,15 @@ public interface IocContainer {
     void registerSingleton(Class<?> type, Object instance);
 
     /**
+     * 覆盖注册一个外部实例（测试替身/运行时替换）：不论类型是否已有注册定义都写入
+     * 单例缓存，getBean 优先返回从而遮蔽定义的实例化。
+     *
+     * @param type     被覆盖的键类型
+     * @param instance 替身实例，不允许为 null
+     */
+    void overrideSingleton(Class<?> type, Object instance);
+
+    /**
      * 注册 bean 后置处理器，将对之后创建的每个 bean 生效。
      *
      * @param processor 后置处理器实例
@@ -166,6 +175,11 @@ final class DefaultIocContainer implements IocContainer {
     @Override
     public void registerSingleton(Class<?> type, Object instance) {
         beanFactory.registerSingleton(type, instance);
+    }
+
+    @Override
+    public void overrideSingleton(Class<?> type, Object instance) {
+        beanFactory.overrideSingleton(type, instance);
     }
 
     @Override

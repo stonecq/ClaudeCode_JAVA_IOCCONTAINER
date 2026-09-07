@@ -2,6 +2,7 @@ package com.learn.mycc.cli.command;
 
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.cli.CliContext;
+import com.learn.mycc.core.annotation.Component;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Parameters;
 
@@ -13,6 +14,7 @@ import java.util.concurrent.Callable;
  * 无历史 / id 不存在时提示并返回退出码 1（不自动新建）。
  */
 @Command(name = "resume", mixinStandardHelpOptions = true, description = "续聊历史会话：无 id 续最近，有 id 续指定")
+@Component
 public final class ResumeCommand implements Callable<Integer> {
 
     private final CliContext ctx;

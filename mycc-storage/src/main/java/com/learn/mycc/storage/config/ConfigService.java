@@ -1,5 +1,6 @@
 package com.learn.mycc.storage.config;
 
+import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.exception.MyccException;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.util.Properties;
  * 提供多层覆盖是为了兼顾"命令行可覆盖、环境注入可覆盖、落到硬盘可持久化"三种
  * 常见部署场景。上层调用 {@link #get(String)} 即可统一读取，无需关心取值来源。</p>
  */
+@Component
 public final class ConfigService {
 
     /** 默认配置文件文件名（位于 {@code ~/.mycc/} 目录下）。 */

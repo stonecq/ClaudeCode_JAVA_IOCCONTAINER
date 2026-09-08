@@ -21,6 +21,7 @@ class OpenAiCompatProviderTest {
 
     private HttpServer server;
     private volatile String receivedAuth;
+    private volatile String receivedSession;
     private volatile String receivedBody;
 
     @BeforeEach
@@ -117,6 +118,17 @@ class OpenAiCompatProviderTest {
     }
 
     @Test
+    void genericProviderDoesNotSendVendorSessionHeader() {
+        // 通用 OpenAI 兼容 provider 不内建厂商头：即使带会话标识也不发 x-opencode-session
+        route("data: [DONE]\n\n", 200);
+        RecordingStreamSink sink = new RecordingStreamSink();
+
+        provider().chat(request().withConversationId("conv-123"), sink);
+
+        assertThat(receivedSession).isNull();
+    }
+
+    @Test
     void surfacesHttpErrorToSink() {
         route("", 401);
         RecordingStreamSink sink = new RecordingStreamSink();
@@ -146,6 +158,7 @@ class OpenAiCompatProviderTest {
     private void route(String sseBody, int status) {
         server.createContext("/v1/chat/completions", exchange -> {
             receivedAuth = exchange.getRequestHeaders().getFirst("Authorization");
+            receivedSession = exchange.getRequestHeaders().getFirst("x-opencode-session");
             receivedBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             byte[] body = sseBody.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "text/event-stream");

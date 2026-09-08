@@ -175,9 +175,12 @@ public final class AgentLoop {
         }
     }
 
-    /** 组装本次请求：以当前会话完整历史 + 工具声明构造 ChatRequest。 */
+    /** 组装本次请求：以当前会话完整历史 + 工具声明构造 ChatRequest，并带上中性会话标识
+     *  （provider 决定是否/如何编码进厂商传输头）。 */
     private ChatRequest buildRequest() {
-        return ChatRequest.of(model, session.conversation().toChatMessages()).withTools(tools);
+        return ChatRequest.of(model, session.conversation().toChatMessages())
+                .withTools(tools)
+                .withConversationId(session.id());
     }
 
     /** 发起 LLM 调用并收集流式结果。

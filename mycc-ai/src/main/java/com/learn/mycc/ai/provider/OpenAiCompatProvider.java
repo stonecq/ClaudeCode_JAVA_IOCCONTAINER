@@ -31,11 +31,13 @@ import java.util.TreeMap;
 
 /**
  * 兼容 OpenAI /chat/completions 流式接口的 Provider（SSE 解析 + tool_calls 累积）。
- * <p>通过真实的 HTTP(S) 调用 DeepSeek 等兼容服务，处理流式 SSE、增量 delta 累加、
- * 思考内容（reasoning_content）、工具调用分段拼装及各类网络错误。
- * 与 {@link MockProvider} 行为对齐：均通过 {@link StreamSink} 回调。
+ * <p>通过真实的 HTTP(S) 调用 DeepSeek 等 OpenAI 兼容服务，处理流式 SSE、增量 delta 累加、
+ * 思考内容（reasoning_content）、工具调用分段拼装及各类网络错误。保持**纯 OpenAI 兼容**——
+ * 厂商专属请求头不在此硬编码，经 {@link #applyVendorHeaders} 钩子由子类注入
+ * （如 opencode 网关的 {@code x-opencode-session}）。
+ * 与 {@link MockProvider} 行为对齐：均通过 {@link StreamSink} 回调。</p>
  */
-public final class OpenAiCompatProvider implements LlmProvider {
+public class OpenAiCompatProvider implements LlmProvider {
 
     /** SSE 流结束标记：遇到该行表示服务端已完成全部输出。 */
     private static final String DONE_MARKER = "[DONE]";
@@ -133,12 +135,26 @@ public final class OpenAiCompatProvider implements LlmProvider {
                 function.set("parameters", mapper.valueToTree(spec.parameters()));
             }
         }
-        return HttpRequest.newBuilder()
+        HttpRequest.Builder post = HttpRequest.newBuilder()
                 .uri(URI.create(config.baseUrl() + "/chat/completions"))
                 .header("Authorization", "Bearer " + config.apiKey())
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8))
-                .build();
+                .header("Content-Type", "application/json");
+        // 厂商专属头走子类钩子（默认无）：本类保持纯 OpenAI 兼容，不内建任何厂商约定
+        applyVendorHeaders(post, request);
+        return post.POST(HttpRequest.BodyPublishers.ofString(body.toString(), StandardCharsets.UTF_8)).build();
+    }
+
+    /**
+     * 厂商专属请求头扩展点（默认 no-op）。子类可依请求内容（如中性会话标识
+     * {@link ChatRequest#conversationId()}）追加自定义头——opencode 网关在其
+     * {@code OpenCodeGatewayProvider} 子类中把 conversationId 编码为 x-opencode-session。
+     * 通用 OpenAI 兼容端点无需覆盖本方法。
+     *
+     * @param builder 待发送的请求构造器（Authorization/Content-Type 已设）
+     * @param request 请求，含会话标识等通用字段
+     */
+    protected void applyVendorHeaders(HttpRequest.Builder builder, ChatRequest request) {
+        // 默认不追加厂商头
     }
 
     /**

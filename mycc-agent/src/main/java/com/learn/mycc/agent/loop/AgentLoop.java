@@ -23,6 +23,7 @@ import com.learn.mycc.ui.InteractionPort;
 import com.learn.mycc.ui.OutputEvent;
 import com.learn.mycc.ui.OutputEventType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -139,7 +140,14 @@ public final class AgentLoop {
         // SESSION_START 只在“新建空会话”触发一次：续聊恢复的历史会话不再宣告会话开始。
         // 判断须在 addMessage 之前，否则追加首条消息后 isEmpty() 恒为 false。
         if (session.isEmpty()) {
-            dispatchHook(HookEventType.SESSION_START, null);
+            List<String> systemPromptList = new ArrayList<>();
+            dispatchHook(HookEventType.SESSION_START, systemPromptList);
+            // 仅当订阅者（如记忆注入）确实追加了内容时才注入 system 消息；
+            // 未装配能力时保持历史行为不变，避免污染会话消息形状。
+            if (!systemPromptList.isEmpty()) {
+                String systemPrompt = String.join("\n", systemPromptList);
+                session.addMessage(Message.system(systemPrompt));
+            }
         }
         session.addMessage(Message.user(userMessage));
         dispatchHook(HookEventType.USER_PROMPT_SUBMIT, userMessage);

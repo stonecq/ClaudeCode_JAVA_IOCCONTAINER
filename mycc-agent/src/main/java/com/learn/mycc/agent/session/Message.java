@@ -23,6 +23,8 @@ public record Message(ChatMessage.Role role, String content, String toolCallId, 
         toolCalls = toolCalls == null ? List.of() : List.copyOf(toolCalls);
     }
 
+    public static Message system(String content){ return new Message(ChatMessage.Role.SYSTEM, content, null, List.of());}
+
     /** @return 用户输入消息：无工具调用、无关联 id。 */
     public static Message user(String content) {
         return new Message(ChatMessage.Role.USER, content, null, List.of());

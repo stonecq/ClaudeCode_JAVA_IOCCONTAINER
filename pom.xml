@@ -22,6 +22,7 @@
         <module>mycc-cli</module>
         <module>mycc-app</module>
         <module>mycc-hooks</module>
+        <module>mycc-memory</module>
     </modules>
 
     <properties>

@@ -99,6 +99,7 @@ public final class CliContext {
         if (replayHistory) {
             SessionReplayer.replay(session, port);
         }
+        container.overrideSingleton(Session.class, session);
         AgentLoop agent = container.getBean(AgentLoop.class, session);
         ReplLoop.AgentRunner runner = agent::run;
         return container.getBean(ReplLoop.class, port, runner, input, session.id());

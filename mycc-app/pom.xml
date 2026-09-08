@@ -46,6 +46,12 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.learn.mycc</groupId>
+            <artifactId>mycc-memory</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>

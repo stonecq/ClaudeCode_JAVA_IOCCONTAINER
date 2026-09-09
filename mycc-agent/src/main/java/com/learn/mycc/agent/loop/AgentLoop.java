@@ -151,6 +151,7 @@ public final class AgentLoop {
         }
         session.addMessage(Message.user(userMessage));
         dispatchHook(HookEventType.USER_PROMPT_SUBMIT, userMessage);
+        String finalResult = null;
         try {
             // 有工具调用则继续下一轮，否则视为最终回答，输出正文并结束。
             // 用迭代上限而非 while(true) 兜底，防止工具反复调用导致死循环。
@@ -164,19 +165,23 @@ public final class AgentLoop {
                 String finalText = response.content();
                 session.addMessage(Message.assistant(finalText, List.of()));
                 emit(OutputEventType.DONE, finalText);
+                finalResult = finalText;
                 return finalText;
             }
             String note = "已达到最大迭代次数（" + maxIterations + "），提前结束。";
             emit(OutputEventType.DONE, note);
+            finalResult = note;
             return note;
         } catch (MyccException e) {
             // Provider 层错误：ERROR 事件告知调用方并作为返回值，不抛出以免调用栈复杂化。
             emit(OutputEventType.ERROR, e.getMessage());
             dispatchHook(HookEventType.ERROR, e.getMessage());
+            finalResult = e.getMessage();
             return e.getMessage();
         } finally {
-            // 无论如何（含异常与提前结束）均派发会话结束钩子并尝试落盘，避免上下文丢失。
-            dispatchHook(HookEventType.SESSION_END, null);
+            // 无论如何（含异常与提前结束）均派发会话结束钩子并尝试落盘，避免上下文丢失；
+            // SESSION_END 以「用户输入 + 最终结果」文本为 payload，供记忆钩子固化本回合。
+            dispatchHook(HookEventType.SESSION_END, "用户: " + userMessage + "\n回答: " + finalResult);
             if (storage != null) {
                 storage.save(session);
             }

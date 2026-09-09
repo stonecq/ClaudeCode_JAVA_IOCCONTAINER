@@ -28,14 +28,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** M9 记忆注入链路：MemoryHook 经 HookDispatcher 挂进 AgentLoop，记忆文本随 SYSTEM 消息发给 LLM。 */
+/** M9 记忆链路端到端：MemoryHook 经 HookDispatcher 挂进 AgentLoop，会话开始注入记忆上下文、会话结束固化本回合。 */
 class AgentMemoryInjectionTest {
 
     @TempDir
     Path tempDir;
 
     Path projectPath;
-    FileStorage fileStorage;
     MemoryStorage memory;
     MemoryHook memoryHook;
     HookDispatcher dispatcher;
@@ -44,13 +43,14 @@ class AgentMemoryInjectionTest {
     @BeforeEach
     void setUp() throws Exception {
         projectPath = Path.of("D:", "learn", "mycc");
-        fileStorage = new FileStorage(tempDir);
-        memory = new MemoryStorage(fileStorage);
-        memoryHook = new MemoryHook(memory, new ApplicationConfig(projectPath));
+        memory = new MemoryStorage(new FileStorage(tempDir), new ApplicationConfig(projectPath));
+        memoryHook = new MemoryHook(memory);
 
         HookRegistry registry = new HookRegistry();
-        Method hookMethod = MemoryHook.class.getMethod("systemPromptMemoryHook", HookEvent.class);
-        registry.register(new HookDefinition(HookEventType.SESSION_START, memoryHook, hookMethod));
+        Method startMethod = MemoryHook.class.getMethod("memoryIndexHook", HookEvent.class);
+        registry.register(new HookDefinition(HookEventType.SESSION_START, memoryHook, startMethod));
+        Method endMethod = MemoryHook.class.getMethod("saveTurnMemoryHook", HookEvent.class);
+        registry.register(new HookDefinition(HookEventType.SESSION_END, memoryHook, endMethod));
         dispatcher = new HookDispatcher(registry);
 
         toolRegistry = new ToolRegistry();
@@ -59,7 +59,7 @@ class AgentMemoryInjectionTest {
     @Test
     void injectsSessionMemoryIntoSystemMessage() {
         Session session = Session.create();
-        memory.saveMemory("用户正在实现M9", session.id(), MemoryType.SESSION);
+        memory.saveSession(session.id(), "用户正在实现M9");
 
         AtomicReference<ChatRequest> captured = new AtomicReference<>();
         MockProvider provider = MockProvider.scripted(request -> {
@@ -75,6 +75,29 @@ class AgentMemoryInjectionTest {
         List<ChatMessage> messages = captured.get().messages();
         assertThat(messages.get(0).role()).isEqualTo(ChatMessage.Role.SYSTEM);
         assertThat(messages.get(0).content()).contains("用户正在实现M9");
+    }
+
+    @Test
+    void injectsUserIndexIntoSystemMessage() {
+        Session session = Session.create();
+        memory.save("prefs", "偏好中文回复", "用户偏好中文", MemoryType.USER);
+
+        AtomicReference<ChatRequest> captured = new AtomicReference<>();
+        MockProvider provider = MockProvider.scripted(request -> {
+            captured.set(request);
+            return ChatResponse.text("收到");
+        });
+        RecordingPort port = new RecordingPort();
+        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, toolRegistry, "mock", 5,
+                null, session, dispatcher);
+
+        agent.run("你好");
+
+        List<ChatMessage> messages = captured.get().messages();
+        assertThat(messages.get(0).role()).isEqualTo(ChatMessage.Role.SYSTEM);
+        assertThat(messages.get(0).content())
+                .contains("【用户长期记忆索引】")
+                .contains("prefs: 偏好中文回复");
     }
 
     @Test
@@ -94,5 +117,20 @@ class AgentMemoryInjectionTest {
 
         assertThat(captured.get().messages())
                 .noneMatch(m -> m.role() == ChatMessage.Role.SYSTEM);
+    }
+
+    @Test
+    void savesTurnIntoSessionMemoryAfterRun() {
+        Session session = Session.create();
+
+        MockProvider provider = MockProvider.scripted(request -> ChatResponse.text("好的，继续。"));
+        RecordingPort port = new RecordingPort();
+        AgentLoop agent = AgentLoop.withToolRegistry(port, provider, toolRegistry, "mock", 5,
+                null, session, dispatcher);
+
+        agent.run("继续实现M9");
+
+        // SESSION_END 派发的 payload 携本回合「用户输入 + 最终回答」，由 saveTurnMemoryHook 落回会话层记忆。
+        assertThat(memory.loadSession(session.id())).isEqualTo("用户: 继续实现M9\n回答: 好的，继续。");
     }
 }

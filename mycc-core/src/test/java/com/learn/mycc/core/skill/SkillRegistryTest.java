@@ -88,4 +88,30 @@ class SkillRegistryTest {
                 .isInstanceOf(MyccException.class)
                 .hasMessageContaining("未注册技能");
     }
+
+    @Test
+    void overrideRegistersNewSkill() {
+        SkillRegistry registry = new SkillRegistry();
+        registry.override(new SkillDefinition("a", "A", "inst", ""));
+        assertThat(registry.getAll()).hasSize(1);
+        assertThat(registry.get("a").getDescription()).isEqualTo("A");
+    }
+
+    @Test
+    void overrideReplacesExistingSkillWithSameName() {
+        SkillRegistry registry = new SkillRegistry();
+        registry.register(new SkillDefinition("a", "旧描述", "inst", ""));
+        registry.override(new SkillDefinition("a", "新描述", "inst2", ""));
+        assertThat(registry.getAll()).hasSize(1);
+        assertThat(registry.get("a").getDescription()).isEqualTo("新描述");
+        assertThat(registry.get("a").getInstructions()).isEqualTo("inst2");
+    }
+
+    @Test
+    void overrideRejectsBlankName() {
+        SkillRegistry registry = new SkillRegistry();
+        assertThatThrownBy(() -> registry.override(new SkillDefinition("  ", "desc", "inst", "")))
+                .isInstanceOf(MyccException.class)
+                .hasMessageContaining("技能名称不能为空");
+    }
 }

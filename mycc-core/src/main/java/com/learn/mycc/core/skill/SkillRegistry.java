@@ -58,6 +58,21 @@ public final class SkillRegistry implements BeanPostProcessor {
     }
 
     /**
+     * 注册或覆盖：同名技能已存在则替换（供文件技能「项目覆盖全局」的优先级使用），
+     * 否则新增。与 {@link #register} 的唯一性抛错不同，本方法按名称强制覆盖。
+     *
+     * @param definition 技能定义，不允许为 null
+     * @throws MyccException 名称为空时抛出
+     */
+    public void override(SkillDefinition definition) {
+        String name = definition.getName();
+        if (name == null || name.isBlank()) {
+            throw new MyccException("技能名称不能为空: " + definition);
+        }
+        skillsByName.put(name, definition);
+    }
+
+    /**
      * 按名称取技能。
      *
      * @param name 技能名

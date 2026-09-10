@@ -83,7 +83,7 @@
 
 ## v2 后续增强（未排期，启动时再细化）
 
-- **M9b 记忆清理**：记忆数量阈值检测与清理。USER/PROJECT 层索引条数超上限时触发清理，触发点候选：save 后 / **回合结束（SESSION_END）** / 下次注入时，待定。清理策略待定：LLM 主动整理（超限提醒后请 LLM 用 `delete_memory` 自清）/ 规则最旧淘汰（`FileStorage.lastModified`）/ LLM 整理 + 规则兜底（防无限膨胀）。
+- ✅ **M9b 记忆清理（已实现 2026-09-09）**：USER/PROJECT 层索引条数超上限（默认 20，可配 `memory.maxEntriesPerLayer`）时，回合结束（SESSION_END）自动启动**专用清理子代理**（装配 read_memory/save_memory/delete_memory）整理——审视/删除/合并降到上限以下。清理策略选"LLM 主导（专用子代理）+ 阈值提示"；规则兜底（防 LLM 不删）未排。
 
 ## v2 完成定义（DoD）
 

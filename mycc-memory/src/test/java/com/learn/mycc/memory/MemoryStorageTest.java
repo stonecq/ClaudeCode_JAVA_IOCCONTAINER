@@ -158,4 +158,13 @@ class MemoryStorageTest {
         String encoded = MemoryStorage.encodeProjectPath(path);
         assertThat(MemoryStorage.decodeProjectPath(encoded)).isEqualTo(path);
     }
+
+    @Test
+    void entryCountCountsIndexLinesAndZeroWhenEmpty() {
+        assertThat(memory.entryCount(MemoryType.USER)).isZero();
+        memory.save("a", "A", "x", MemoryType.USER);
+        assertThat(memory.entryCount(MemoryType.USER)).isEqualTo(1);
+        memory.save("b", "B", "y", MemoryType.USER);
+        assertThat(memory.entryCount(MemoryType.USER)).isEqualTo(2);
+    }
 }

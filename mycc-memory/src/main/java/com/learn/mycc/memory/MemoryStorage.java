@@ -60,6 +60,15 @@ public class MemoryStorage {
         return readKey(indexKey(type));
     }
 
+    /** 某层记忆条目数（索引行数）；无记忆返回 0。仅 USER/PROJECT 可用，供超限判定。 */
+    public int entryCount(MemoryType type) {
+        String index = loadIndex(type);
+        if (index == null || index.isBlank()) {
+            return 0;
+        }
+        return (int) index.lines().count();
+    }
+
     /** 读取一条记忆全文；不存在返回 null。仅 USER/PROJECT 可用。 */
     public String load(String id, MemoryType type) {
         requireEntryType(type);

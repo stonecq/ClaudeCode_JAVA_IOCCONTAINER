@@ -9,6 +9,7 @@ import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.storage.config.ConfigService;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -36,6 +37,11 @@ class SubagentServiceTest {
         public String readMemory(String id) {
             return "";
         }
+
+        @Tool(name = "delete_memory", description = "删记忆", subagentExcluded = true)
+        public String deleteMemory(String id) {
+            return "";
+        }
     }
 
     private SubagentService service(ToolRegistry registry, AtomicReference<ChatRequest> captured) {
@@ -58,7 +64,7 @@ class SubagentServiceTest {
         assertThat(result).isEqualTo("子结果：找到文件");
         // 子代理请求发给 LLM 的工具只含非 excluded（glob/grep），excluded 工具（subagent/memory）被过滤
         assertThat(captured.get().tools()).extracting(ToolSpec::name)
-                .containsExactly("glob", "grep");
+                .containsExactlyInAnyOrder("glob", "grep");
     }
 
     @Test
@@ -101,5 +107,24 @@ class SubagentServiceTest {
 
         assertThat(result).isEqualTo("纯文本子结果");
         assertThat(captured.get().tools()).isEmpty();
+    }
+
+    @Test
+    void runWithAllowedToolsOverridesExclusion() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.postProcessAfterInitialization(new TestTools(), "testTools");
+        AtomicReference<ChatRequest> captured = new AtomicReference<>();
+        MockProvider provider = MockProvider.scripted(request -> {
+            captured.set(request);
+            return ChatResponse.text("整理完成");
+        });
+        SubagentService service = new SubagentService(provider, registry, new RecordingPort(), new ConfigService());
+
+        String result = service.run("整理记忆", "你是记忆整理代理", List.of("read_memory", "delete_memory"));
+
+        assertThat(result).isEqualTo("整理完成");
+        // 指定工具集覆盖 subagentExcluded：read_memory/delete_memory 本被排除，仍被装配给专用子代理
+        assertThat(captured.get().tools()).extracting(ToolSpec::name)
+                .containsExactlyInAnyOrder("read_memory", "delete_memory");
     }
 }

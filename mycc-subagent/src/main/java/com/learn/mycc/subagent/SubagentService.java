@@ -47,18 +47,34 @@ public class SubagentService {
     }
 
     /**
-     * 派发一个子任务给子代理执行。
+     * 派发一个子任务给子代理执行（默认工具集：非 {@code subagentExcluded} 的工具）。
      *
      * @param task         子任务指令（作为子代理用户消息）
      * @param systemPrompt 子代理系统提示；null/空白时用默认提示词
      * @return 子代理最终回答文本
      */
     public String run(String task, String systemPrompt) {
+        return run(task, systemPrompt, null);
+    }
+
+    /**
+     * 派发一个子任务给子代理执行。
+     *
+     * @param task         子任务指令（作为子代理用户消息）
+     * @param systemPrompt 子代理系统提示；null/空白时用默认提示词
+     * @param allowedTools 指定工具集；非空时子代理只能使用这些名字的工具（忽略
+     *                     {@code subagentExcluded}，供专用清理子代理装配 memory 工具），
+     *                     null/空时沿用默认排除逻辑（非 excluded 的工具）
+     * @return 子代理最终回答文本
+     */
+    public String run(String task, String systemPrompt, List<String> allowedTools) {
         String prompt = (systemPrompt == null || systemPrompt.isBlank()) ? DEFAULT_SUBAGENT_PROMPT : systemPrompt;
         ParameterSchemaGenerator schemaGen = new ParameterSchemaGenerator();
-        // 子代理只见非 excluded 工具：排除各 @Tool 声明禁止子代理使用的工具
+        // 子代理工具集：指定名单则按名取（覆盖排除），否则排除各 @Tool 声明禁止子代理使用的工具
         List<ToolSpec> subTools = toolRegistry.getAll().stream()
-                .filter(definition -> !definition.isSubagentExcluded())
+                .filter(definition -> allowedTools == null
+                        ? !definition.isSubagentExcluded()
+                        : allowedTools.contains(definition.getName()))
                 .map(definition -> new ToolSpec(definition.getName(), definition.getDescription(),
                         schemaGen.generate(definition.getMethod())))
                 .toList();

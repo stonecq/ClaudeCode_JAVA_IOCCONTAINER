@@ -9,6 +9,7 @@ import com.learn.mycc.core.bean.BeanFactory;
 import com.learn.mycc.core.bean.BeanPostProcessor;
 import com.learn.mycc.core.hook.HookRegistry;
 import com.learn.mycc.core.scan.AnnotationScanner;
+import com.learn.mycc.core.skill.SkillRegistry;
 import com.learn.mycc.core.tool.ToolRegistry;
 
 import java.lang.reflect.Method;
@@ -119,6 +120,9 @@ public interface IocContainer {
     /** 容器内置的钩子注册表（自动捕获所有 @Hook 方法，按事件类型分组）。 */
     HookRegistry getHookRegistry();
 
+    /** 容器内置的技能注册表（自动捕获所有 @Skill 类，按注册顺序）。 */
+    SkillRegistry getSkillRegistry();
+
     /** 关闭容器：按创建逆序销毁 DisposableBean（含 @Bean destroyMethod）并清空缓存。 */
     void close();
 
@@ -146,13 +150,18 @@ final class DefaultIocContainer implements IocContainer {
     /** 钩子注册表，注册为 BeanPostProcessor 以在 bean 创建后自动捕获 @Hook。 */
     private final HookRegistry hookRegistry = new HookRegistry();
 
+    /** 技能注册表，注册为 BeanPostProcessor 以在 bean 创建后自动捕获 @Skill。 */
+    private final SkillRegistry skillRegistry = new SkillRegistry();
+
     DefaultIocContainer() {
-        // 将工具/钩子注册表作为后置处理器挂入工厂：每个 bean 创建完成即可被扫描
+        // 将工具/钩子/技能注册表作为后置处理器挂入工厂：每个 bean 创建完成即可被扫描
         beanFactory.addBeanPostProcessor(toolRegistry);
         beanFactory.addBeanPostProcessor(hookRegistry);
+        beanFactory.addBeanPostProcessor(skillRegistry);
         // 内置注册表与容器自身作为单例注入：按类型可注入（CliContext 等经容器做 prototype 绑定）
         beanFactory.registerSingleton(ToolRegistry.class, toolRegistry);
         beanFactory.registerSingleton(HookRegistry.class, hookRegistry);
+        beanFactory.registerSingleton(SkillRegistry.class, skillRegistry);
         beanFactory.registerSingleton(IocContainer.class, this);
     }
 
@@ -220,6 +229,11 @@ final class DefaultIocContainer implements IocContainer {
     @Override
     public HookRegistry getHookRegistry() {
         return hookRegistry;
+    }
+
+    @Override
+    public SkillRegistry getSkillRegistry() {
+        return skillRegistry;
     }
 
     @Override

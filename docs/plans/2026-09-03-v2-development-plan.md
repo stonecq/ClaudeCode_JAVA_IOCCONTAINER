@@ -73,13 +73,17 @@
 ## M8–M13 概览（启动时再细化）
 
 - **M8 权限管理**：工具调用审批流（自动允许 / 自动拒绝 / 每次询问 / 按规则）；高风险工具（bash、write_file）默认审批；决策持久化（同一会话/项目记忆授权结果），基于 `Storage`；集成点走 M7 的 `tool_call_before` 钩子。
-- **M9 Memory 长期记忆**：用户/项目/会话三层记忆读写、注入提示词、按关键词检索；基于 `Storage` SPI。
+- **M9 Memory 长期记忆**：用户/项目/会话三层记忆读写、注入提示词、按关键词检索；基于 `Storage` SPI。**（主体已完成，见文末「v2 后续增强」中的 M9b 记忆清理）**
 - **M10 Skill 技能**：`@Skill`（能力描述 + 提示词 + 触发条件）注解方式 + `SKILL.md`/skill 目录文件方式；加载为可调用/可注入能力。
 - **M11 Planning 规划**：计划模式生成多步 `Plan`（步骤列表），逐步执行、核对、推进；预留与 Subagent 结合。
 - **M12 Subagent 子代理**：主代理派生子代理，独立系统提示 + 工具子集，结果汇总回主代理；基于同一 `AgentLoop`、不同 `Session`/上下文（嵌套循环）。
 - **M13 Web 界面**：新建 `mycc-web` 模块，嵌入式 Jetty + SSE，`WebPort` 实现 `InteractionPort`；REST 会话创建/列出/删除；`mycc-app` 选择绑定 Web。
 
 ---
+
+## v2 后续增强（未排期，启动时再细化）
+
+- **M9b 记忆清理**：记忆数量阈值检测与清理。USER/PROJECT 层索引条数超上限时触发清理，触发点候选：save 后 / **回合结束（SESSION_END）** / 下次注入时，待定。清理策略待定：LLM 主动整理（超限提醒后请 LLM 用 `delete_memory` 自清）/ 规则最旧淘汰（`FileStorage.lastModified`）/ LLM 整理 + 规则兜底（防无限膨胀）。
 
 ## v2 完成定义（DoD）
 

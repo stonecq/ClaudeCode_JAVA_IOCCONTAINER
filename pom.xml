@@ -23,6 +23,7 @@
         <module>mycc-app</module>
         <module>mycc-hooks</module>
         <module>mycc-memory</module>
+        <module>mycc-skill</module>
     </modules>
 
     <properties>

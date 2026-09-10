@@ -37,6 +37,10 @@ public final class ParameterSchemaGenerator {
         Map<String, Object> properties = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
         for (Parameter parameter : method.getParameters()) {
+            // 工具上下文参数（ToolContext）由执行器注入，不暴露给 LLM、不进入 Schema
+            if (parameter.getType() == ToolContext.class) {
+                continue;
+            }
             String name = parameter.getName();
             Map<String, Object> property = typeSchema(parameter.getType());
             ToolParam toolParam = parameter.getAnnotation(ToolParam.class);

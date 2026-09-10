@@ -39,6 +39,16 @@ class ParameterSchemaGeneratorTest {
         assertThat(schema.get("required")).isEqualTo(List.of("path", "count", "mode"));
     }
 
+    @Test
+    void skipsToolContextParameterFromSchema() throws Exception {
+        Method method = SchemaFixture.class.getMethod("contextual", ToolContext.class, String.class);
+        Map<String, Object> schema = generator.generate(method);
+
+        Map<String, Object> props = propertiesOf(schema);
+        assertThat(props).containsOnlyKeys("text");
+        assertThat(schema.get("required")).isEqualTo(List.of("text"));
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> propertiesOf(Map<String, Object> schema) {
         return (Map<String, Object>) schema.get("properties");

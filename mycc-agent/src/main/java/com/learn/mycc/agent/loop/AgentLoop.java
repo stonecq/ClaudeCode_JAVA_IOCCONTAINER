@@ -18,6 +18,7 @@ import com.learn.mycc.core.hook.HookDispatcher;
 import com.learn.mycc.core.hook.HookEvent;
 import com.learn.mycc.core.hook.HookEventType;
 import com.learn.mycc.core.tool.ParameterSchemaGenerator;
+import com.learn.mycc.core.tool.ToolContext;
 import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.ui.InteractionPort;
 import com.learn.mycc.ui.OutputEvent;
@@ -249,7 +250,7 @@ public final class AgentLoop {
                 emit(OutputEventType.TOOL_RESULT, call.id() + " => " + denied);
                 continue;
             }
-            ToolResult result = executor.execute(call);
+            ToolResult result = executor.execute(call, new ToolContext(session.id()));
             dispatchHook(HookEventType.TOOL_CALL_AFTER, call);
             session.addMessage(Message.tool(call.id(), result.output()));
             emit(OutputEventType.TOOL_RESULT, result.callId() + " => " + result.output());

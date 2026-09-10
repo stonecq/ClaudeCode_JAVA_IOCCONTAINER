@@ -2,6 +2,7 @@ package com.learn.mycc.agent.tool;
 
 import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.core.annotation.Tool;
+import com.learn.mycc.core.tool.ToolContext;
 import com.learn.mycc.core.tool.ToolRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,22 @@ class ToolCallExecutorTest {
         assertThat(result.output()).contains("缺少参数");
     }
 
+    @Test
+    void injectsToolContextIntoContextParameter() {
+        ToolResult result = executor.execute(new ToolCall("c6", "ctx", "{\"text\":\"hi\"}"), new ToolContext("sess-9"));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.output()).isEqualTo("sess-9|hi");
+    }
+
+    @Test
+    void toolWithoutContextParameterWorksViaContextOverload() {
+        ToolResult result = executor.execute(new ToolCall("c7", "greet", "{\"name\":\"bob\"}"), new ToolContext("sess-1"));
+
+        assertThat(result.success()).isTrue();
+        assertThat(result.output()).isEqualTo("hello bob");
+    }
+
     static final class TestTools {
 
         @Tool(name = "add", description = "两个整数相加")
@@ -75,6 +92,11 @@ class ToolCallExecutorTest {
         @Tool(name = "boom", description = "抛异常")
         public String boom() {
             throw new IllegalStateException("kaboom");
+        }
+
+        @Tool(name = "ctx", description = "读取会话上下文")
+        public String ctx(ToolContext context, String text) {
+            return context.sessionId() + "|" + text;
         }
     }
 }

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.core.exception.MyccException;
+import com.learn.mycc.core.tool.ToolContext;
 import com.learn.mycc.core.tool.ToolDefinition;
 import com.learn.mycc.core.tool.ToolRegistry;
 
@@ -38,9 +39,21 @@ public final class ToolCallExecutor {
      * @return 执行结果：成功或失败，均不抛异常；失败时 output 为错误描述
      */
     public ToolResult execute(ToolCall call) {
+        return execute(call, null);
+    }
+
+    /**
+     * 执行一次工具调用（带会话上下文）。
+     * 工具方法若声明 {@link ToolContext} 参数，则从 context 注入（不读工具参数 JSON），
+     * 否则与无上下文路径一致。
+     * @param call LLM 发起的工具调用（含工具名、参数 JSON 字符串）
+     * @param context 当前会话上下文；可为 null（无上下文参数的工具不受影响）
+     * @return 执行结果：成功或失败，均不抛异常；失败时 output 为错误描述
+     */
+    public ToolResult execute(ToolCall call, ToolContext context) {
         try {
             ToolDefinition definition = toolRegistry.get(call.name());
-            Object[] args = bindArguments(definition.getMethod(), call.arguments());
+            Object[] args = bindArguments(definition.getMethod(), call.arguments(), context);
             Object result = definition.getMethod().invoke(definition.getBean(), args);
             return ToolResult.ok(call.id(), String.valueOf(result));
         } catch (MyccException e) {
@@ -56,9 +69,11 @@ public final class ToolCallExecutor {
         }
     }
 
-    /** 把工具参数 JSON 绑定为方法入参数组；空参方法直接返回空数组，避免多余解析。
+    /**
+     * 把工具参数 JSON 绑定为方法入参数组；空参方法直接返回空数组，避免多余解析。
+     * {@link ToolContext} 类型参数不读 JSON，直接注入传入的上下文（不暴露给 LLM）。
      *  @throws JsonProcessingException JSON 解析失败时抛出 */
-    private Object[] bindArguments(Method method, String arguments) throws JsonProcessingException {
+    private Object[] bindArguments(Method method, String arguments, ToolContext context) throws JsonProcessingException {
         Parameter[] parameters = method.getParameters();
         Object[] args = new Object[parameters.length];
         if (parameters.length == 0) {
@@ -69,7 +84,11 @@ public final class ToolCallExecutor {
         JsonNode root = mapper.readTree(arguments == null || arguments.isBlank() ? "{}" : arguments);
         for (int i = 0; i < parameters.length; i++) {
             Parameter parameter = parameters[i];
-            args[i] = convert(root.get(parameter.getName()), parameter.getType());
+            if (parameter.getType() == ToolContext.class) {
+                args[i] = context;
+            } else {
+                args[i] = convert(root.get(parameter.getName()), parameter.getType());
+            }
         }
         return args;
     }

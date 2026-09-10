@@ -1,4 +1,4 @@
-package com.learn.mycc.agent.planning;
+package com.learn.mycc.planning;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

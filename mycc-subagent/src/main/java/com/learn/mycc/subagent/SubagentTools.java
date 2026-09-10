@@ -1,4 +1,4 @@
-package com.learn.mycc.agent.subagent;
+package com.learn.mycc.subagent;
 
 import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Inject;

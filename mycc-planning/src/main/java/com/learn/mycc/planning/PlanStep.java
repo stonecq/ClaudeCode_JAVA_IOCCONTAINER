@@ -1,4 +1,4 @@
-package com.learn.mycc.agent.planning;
+package com.learn.mycc.planning;
 
 /**
  * 计划步骤：一条待执行/已执行的步骤。

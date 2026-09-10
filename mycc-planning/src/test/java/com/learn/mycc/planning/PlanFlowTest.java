@@ -1,11 +1,8 @@
-package com.learn.mycc.agent.loop;
+package com.learn.mycc.planning;
 
-import com.learn.mycc.agent.RecordingPort;
-import com.learn.mycc.agent.planning.PlanStore;
-import com.learn.mycc.agent.planning.PlanTools;
+import com.learn.mycc.agent.loop.AgentLoop;
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.ai.model.ChatMessage;
-import com.learn.mycc.ai.model.ChatRequest;
 import com.learn.mycc.ai.model.ChatResponse;
 import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.ai.model.ToolSpec;
@@ -33,7 +30,7 @@ class PlanFlowTest {
         ToolRegistry toolRegistry = new ToolRegistry();
         toolRegistry.postProcessAfterInitialization(new PlanTools(store), "planTools");
 
-        AtomicReference<ChatRequest> captured = new AtomicReference<>();
+        AtomicReference<ChatRequestHolder> captured = new AtomicReference<>();
         MockProvider provider = MockProvider.scripted(request -> {
             long toolCount = request.messages().stream()
                     .filter(m -> m.role() == ChatMessage.Role.TOOL)
@@ -51,7 +48,7 @@ class PlanFlowTest {
             if (toolCount == 3) {
                 return new ChatResponse("", List.of(new ToolCall("c4", "complete_step", "{\"stepIndex\":3}")));
             }
-            captured.set(request);
+            captured.compareAndSet(null, new ChatRequestHolder(request.tools()));
             return ChatResponse.text("计划完成");
         });
         RecordingPort port = new RecordingPort();
@@ -70,5 +67,9 @@ class PlanFlowTest {
                 .anySatisfy(m -> assertThat(m.content()).contains("全部步骤完成"));
         // 计划确实按会话落盘，且全部完成后被清理（不再残留旧计划）
         assertThat(store.load(agent.session().id())).isEmpty();
+    }
+
+    /** 捕获最后一次请求的工具列表。 */
+    record ChatRequestHolder(List<ToolSpec> tools) {
     }
 }

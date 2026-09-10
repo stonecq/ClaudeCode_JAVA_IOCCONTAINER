@@ -1,4 +1,4 @@
-package com.learn.mycc.agent.subagent;
+package com.learn.mycc.subagent;
 
 import com.learn.mycc.agent.loop.AgentLoop;
 import com.learn.mycc.agent.session.Message;

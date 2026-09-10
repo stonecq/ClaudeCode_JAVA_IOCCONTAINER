@@ -1,4 +1,4 @@
-package com.learn.mycc.agent.planning;
+package com.learn.mycc.planning;
 
 import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Inject;

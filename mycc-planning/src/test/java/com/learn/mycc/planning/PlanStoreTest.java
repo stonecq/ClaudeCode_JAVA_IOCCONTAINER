@@ -1,4 +1,4 @@
-package com.learn.mycc.agent.planning;
+package com.learn.mycc.planning;
 
 import com.learn.mycc.storage.file.FileStorage;
 import org.junit.jupiter.api.BeforeEach;

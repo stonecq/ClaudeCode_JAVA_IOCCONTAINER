@@ -1,6 +1,5 @@
-package com.learn.mycc.agent.subagent;
+package com.learn.mycc.subagent;
 
-import com.learn.mycc.agent.RecordingPort;
 import com.learn.mycc.ai.model.ChatRequest;
 import com.learn.mycc.ai.model.ChatResponse;
 import com.learn.mycc.ai.model.ToolSpec;
@@ -39,9 +38,12 @@ class SubagentServiceTest {
         }
     }
 
-    private SubagentService service(ToolRegistry registry, MockProvider provider, AtomicReference<ChatRequest> captured) {
-        RecordingPort port = new RecordingPort();
-        return new SubagentService(provider, registry, port, new ConfigService());
+    private SubagentService service(ToolRegistry registry, AtomicReference<ChatRequest> captured) {
+        MockProvider provider = MockProvider.scripted(request -> {
+            captured.set(request);
+            return ChatResponse.text("子结果：找到文件");
+        });
+        return new SubagentService(provider, registry, new RecordingPort(), new ConfigService());
     }
 
     @Test
@@ -49,11 +51,7 @@ class SubagentServiceTest {
         ToolRegistry registry = new ToolRegistry();
         registry.postProcessAfterInitialization(new TestTools(), "testTools");
         AtomicReference<ChatRequest> captured = new AtomicReference<>();
-        MockProvider provider = MockProvider.scripted(request -> {
-            captured.set(request);
-            return ChatResponse.text("子结果：找到文件");
-        });
-        SubagentService service = service(registry, provider, captured);
+        SubagentService service = service(registry, captured);
 
         String result = service.run("在项目里找一个文件", null);
 
@@ -68,11 +66,7 @@ class SubagentServiceTest {
         ToolRegistry registry = new ToolRegistry();
         registry.postProcessAfterInitialization(new TestTools(), "testTools");
         AtomicReference<ChatRequest> captured = new AtomicReference<>();
-        MockProvider provider = MockProvider.scripted(request -> {
-            captured.set(request);
-            return ChatResponse.text("子结果");
-        });
-        SubagentService service = service(registry, provider, captured);
+        SubagentService service = service(registry, captured);
 
         service.run("任务", null);
 
@@ -85,11 +79,7 @@ class SubagentServiceTest {
         ToolRegistry registry = new ToolRegistry();
         registry.postProcessAfterInitialization(new TestTools(), "testTools");
         AtomicReference<ChatRequest> captured = new AtomicReference<>();
-        MockProvider provider = MockProvider.scripted(request -> {
-            captured.set(request);
-            return ChatResponse.text("子结果");
-        });
-        SubagentService service = service(registry, provider, captured);
+        SubagentService service = service(registry, captured);
 
         service.run("任务", "你只做只读分析，不修改文件");
 

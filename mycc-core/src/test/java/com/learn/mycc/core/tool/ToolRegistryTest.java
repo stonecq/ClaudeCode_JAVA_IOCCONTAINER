@@ -1,5 +1,6 @@
 package com.learn.mycc.core.tool;
 
+import com.learn.mycc.core.annotation.Tool;
 import com.learn.mycc.core.bean.BeanDefinition;
 import com.learn.mycc.core.bean.BeanFactory;
 import com.learn.mycc.core.context.IocContainer;
@@ -68,5 +69,29 @@ class ToolRegistryTest {
         assertThatThrownBy(() -> registry.get("missing"))
                 .isInstanceOf(MyccException.class)
                 .hasMessageContaining("未注册工具");
+    }
+
+    @Test
+    void capturesSubagentExcludedFlagFromAnnotation() {
+        BeanFactory factory = new BeanFactory();
+        ToolRegistry registry = new ToolRegistry();
+        factory.addBeanPostProcessor(registry);
+        factory.register(BeanDefinition.from(ExcludedFixture.class));
+        factory.getBean(ExcludedFixture.class);
+
+        assertThat(registry.get("sub").isSubagentExcluded()).isTrue();
+        assertThat(registry.get("open").isSubagentExcluded()).isFalse();
+    }
+
+    static final class ExcludedFixture {
+        @Tool(name = "sub", description = "禁止子代理", subagentExcluded = true)
+        public String sub(String x) {
+            return "";
+        }
+
+        @Tool(name = "open", description = "默认开放")
+        public String open(String x) {
+            return "";
+        }
     }
 }

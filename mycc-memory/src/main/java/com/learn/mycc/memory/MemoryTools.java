@@ -23,7 +23,7 @@ public class MemoryTools {
     }
 
     /** 读取一条记忆全文；无该 id 时返回"未找到"提示而非空串，便于 LLM 区分"没有"。 */
-    @Tool(name = "read_memory", description = "按层级与 id 读取一条长期记忆全文（索引已随会话开始注入，可据此选 id）")
+    @Tool(name = "read_memory", description = "按层级与 id 读取一条长期记忆全文（索引已随会话开始注入，可据此选 id）", subagentExcluded = true)
     public String readMemory(@ToolParam(description = "记忆层级：USER(用户全局偏好) 或 PROJECT(当前项目)") MemoryType type,
                              @ToolParam(description = "记忆 id，取自注入的索引") String id) {
         requireNotSession(type);
@@ -32,7 +32,7 @@ public class MemoryTools {
     }
 
     /** 新增或更新一条长期记忆；同 id 已存在则覆盖内容并刷新索引描述。 */
-    @Tool(name = "save_memory", description = "新增或更新一条长期记忆（USER 或 PROJECT），id 已存在时覆盖")
+    @Tool(name = "save_memory", description = "新增或更新一条长期记忆（USER 或 PROJECT），id 已存在时覆盖", subagentExcluded = true)
     public String saveMemory(@ToolParam(description = "记忆层级：USER(用户全局偏好) 或 PROJECT(当前项目)") MemoryType type,
                              @ToolParam(description = "记忆 id，英文短横线 slug 命名，如 user-preferences") String id,
                              @ToolParam(description = "一句话描述，展示在索引中供快速判断") String description,
@@ -43,7 +43,7 @@ public class MemoryTools {
     }
 
     /** 删除一条长期记忆并同步从索引移除。 */
-    @Tool(name = "delete_memory", description = "删除一条长期记忆，并从索引移除")
+    @Tool(name = "delete_memory", description = "删除一条长期记忆，并从索引移除", subagentExcluded = true)
     public String deleteMemory(@ToolParam(description = "记忆层级：USER(用户全局偏好) 或 PROJECT(当前项目)") MemoryType type,
                                @ToolParam(description = "记忆 id") String id) {
         requireNotSession(type);

@@ -23,7 +23,7 @@ public class SkillTools {
     }
 
     /** 激活一个技能，返回其指令文本供 LLM 按指示执行。 */
-    @Tool(name = "invoke_skill", description = "激活一个技能，返回其指令文本供按指示执行（可用技能目录已随会话开始注入）")
+    @Tool(name = "invoke_skill", description = "激活一个技能，返回其指令文本供按指示执行（可用技能目录已随会话开始注入）", subagentExcluded = true)
     public String invokeSkill(@ToolParam(description = "技能名，取自注入的技能目录") String name) {
         return registry.get(name).getInstructions();
     }

@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MyccApplicationTest {
 
     @Test
-    void assemblesAllFourteenBuiltinTools() {
+    void assemblesAllFifteenBuiltinTools() {
         MyccApplication application = new MyccApplication();
         application.start();
         IocContainer container = application.getIocContainer();
@@ -31,7 +31,7 @@ class MyccApplicationTest {
             assertThat(names).containsExactlyInAnyOrder(
                     "read_file", "write_file", "edit_file", "bash", "glob", "grep", "search_files",
                     "read_memory", "save_memory", "delete_memory", "invoke_skill",
-                    "create_plan", "complete_step", "read_plan");
+                    "create_plan", "complete_step", "read_plan", "subagent");
         } finally {
             container.close();
         }

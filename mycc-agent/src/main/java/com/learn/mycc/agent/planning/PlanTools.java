@@ -28,7 +28,7 @@ public class PlanTools {
     }
 
     /** 创建计划：按会话覆盖保存，返回计划文本供逐步执行。 */
-    @Tool(name = "create_plan", description = "为当前任务创建多步计划：落盘并按步骤逐步执行，每完成一步调 complete_step 推进")
+    @Tool(name = "create_plan", description = "为当前任务创建多步计划：落盘并按步骤逐步执行，每完成一步调 complete_step 推进", subagentExcluded = true)
     public String createPlan(ToolContext ctx,
                              @ToolParam(description = "任务目标") String goal,
                              @ToolParam(description = "步骤列表，每行一步、按执行顺序") String steps) {
@@ -45,7 +45,7 @@ public class PlanTools {
     }
 
     /** 推进计划：把第 stepIndex（1 起）步标记完成，返回最新计划状态。 */
-    @Tool(name = "complete_step", description = "标记计划第 N 步完成（序号从 1 起），返回剩余计划；全部完成时返回完成提示")
+    @Tool(name = "complete_step", description = "标记计划第 N 步完成（序号从 1 起），返回剩余计划；全部完成时返回完成提示", subagentExcluded = true)
     public String completeStep(ToolContext ctx,
                                @ToolParam(description = "步骤序号，从 1 开始") int stepIndex,
                                @ToolParam(description = "该步完成说明", required = false) String note) {
@@ -62,7 +62,7 @@ public class PlanTools {
     }
 
     /** 读取计划：返回当前会话计划全貌；读取是查询，无计划返回提示文本而非报错，引导先创建。 */
-    @Tool(name = "read_plan", description = "查看当前会话的完整计划：目标 + 每步状态（已完成/未完成）")
+    @Tool(name = "read_plan", description = "查看当前会话的完整计划：目标 + 每步状态（已完成/未完成）", subagentExcluded = true)
     public String readPlan(ToolContext ctx) {
         return store.load(ctx.sessionId())
                 .map(plan -> "当前计划：\n" + format(plan))

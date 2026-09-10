@@ -34,7 +34,7 @@ public final class ToolRegistry implements BeanPostProcessor {
         for (Method method : bean.getClass().getDeclaredMethods()) {
             Tool tool = method.getAnnotation(Tool.class);
             if (tool != null) {
-                register(new ToolDefinition(tool.name(), tool.description(), bean, method, tool.risk()));
+                register(new ToolDefinition(tool.name(), tool.description(), bean, method, tool.risk(), tool.subagentExcluded()));
             }
         }
         return bean;

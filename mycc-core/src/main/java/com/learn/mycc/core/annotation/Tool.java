@@ -27,4 +27,11 @@ public @interface Tool {
      * 的调用默认触发审批，规则文件可按工具覆盖。
      */
     ToolRisk risk() default ToolRisk.LOW;
+
+    /**
+     * 是否禁止子代理使用：默认 false（默认允许子代理调用）。
+     * 标 true 的工具不会进入子代理的工具集——subagent 工具本身应置 true 以防
+     * 递归，memory/skill/plan 等"心智/协调"类工具通常也应置 true 让子代理专注执行。
+     */
+    boolean subagentExcluded() default false;
 }

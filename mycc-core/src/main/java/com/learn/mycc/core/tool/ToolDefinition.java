@@ -26,6 +26,9 @@ public final class ToolDefinition {
     /** 工具风险等级；四参构造缺省为 {@link ToolRisk#LOW}。 */
     private final ToolRisk risk;
 
+    /** 是否禁止子代理使用；由 @Tool{subagentExcluded} 捕获，缺省 false（允许子代理）。 */
+    private final boolean subagentExcluded;
+
     /**
      * @param name        工具名，不允许为 null 或空白
      * @param description 工具描述，可为空字符串
@@ -33,7 +36,7 @@ public final class ToolDefinition {
      * @param method      工具方法引用，不允许为 null
      */
     public ToolDefinition(String name, String description, Object bean, Method method) {
-        this(name, description, bean, method, ToolRisk.LOW);
+        this(name, description, bean, method, ToolRisk.LOW, false);
     }
 
     /**
@@ -44,11 +47,26 @@ public final class ToolDefinition {
      * @param risk        工具风险等级，不允许为 null
      */
     public ToolDefinition(String name, String description, Object bean, Method method, ToolRisk risk) {
+        this(name, description, bean, method, risk, false);
+    }
+
+    /**
+     * 全量构造。
+     *
+     * @param name            工具名，不允许为 null 或空白
+     * @param description     工具描述，可为空字符串
+     * @param bean            所属 bean 实例，不允许为 null
+     * @param method          工具方法引用，不允许为 null
+     * @param risk            工具风险等级，不允许为 null
+     * @param subagentExcluded 是否禁止子代理使用
+     */
+    public ToolDefinition(String name, String description, Object bean, Method method, ToolRisk risk, boolean subagentExcluded) {
         this.name = name;
         this.description = description;
         this.bean = bean;
         this.method = method;
         this.risk = risk;
+        this.subagentExcluded = subagentExcluded;
     }
 
     /** @return 工具名 */
@@ -74,5 +92,10 @@ public final class ToolDefinition {
     /** @return 工具风险等级 */
     public ToolRisk getRisk() {
         return risk;
+    }
+
+    /** @return 是否禁止子代理使用（{@code @Tool.subagentExcluded} 捕获值） */
+    public boolean isSubagentExcluded() {
+        return subagentExcluded;
     }
 }

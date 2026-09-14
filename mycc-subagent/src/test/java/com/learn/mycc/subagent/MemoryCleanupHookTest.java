@@ -17,6 +17,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -32,7 +34,7 @@ class MemoryCleanupHookTest {
     MemoryCleanupHook hook;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws IOException {
         memory = new MemoryStorage(new FileStorage(tempDir), new ApplicationConfig(Path.of("D:", "learn", "mycc")));
         ToolRegistry registry = new ToolRegistry();
         registry.postProcessAfterInitialization(new MemoryTools(memory), "memoryTools");
@@ -42,7 +44,10 @@ class MemoryCleanupHookTest {
             return ChatResponse.text("整理完成");
         });
         SubagentService subagents = new SubagentService(provider, registry, new RecordingPort(), new ConfigService());
-        hook = new MemoryCleanupHook(memory, subagents, new ConfigService());
+        // 阈值注入小值（2），测试不耦合生产默认值
+        Path configFile = tempDir.resolve("config");
+        Files.writeString(configFile, "memory.maxEntriesPerLayer=2");
+        hook = new MemoryCleanupHook(memory, subagents, registry, new ConfigService(configFile));
     }
 
     @Test
@@ -54,23 +59,23 @@ class MemoryCleanupHookTest {
 
     @Test
     void overLimitStartsDedicatedCleanupSubagent() {
-        for (int i = 0; i < 21; i++) {
+        for (int i = 0; i < 3; i++) {
             memory.save("entry" + i, "描述" + i, "内容" + i, MemoryType.USER);
         }
-        assertThat(memory.entryCount(MemoryType.USER)).isEqualTo(21);
+        assertThat(memory.entryCount(MemoryType.USER)).isEqualTo(3);
 
         hook.cleanupMemoryHook(new HookEvent(HookEventType.SESSION_END, "sess-1", null));
 
         assertThat(captured.get()).isNotNull();
-        // 专用清理子代理装配 memory 三工具（覆盖 subagentExcluded）
+        // 清理子代理工具集由 @Tool(memoryCleanAgentExclude=false) 推导：memory 全部四个工具
         assertThat(captured.get().tools()).extracting(ToolSpec::name)
-                .containsExactlyInAnyOrder("read_memory", "save_memory", "delete_memory");
+                .containsExactlyInAnyOrder("load_index", "read_memory", "save_memory", "delete_memory");
         // 系统提示为记忆整理代理
         assertThat(captured.get().messages().get(0).content())
                 .contains(MemoryCleanupHook.CLEANUP_PROMPT);
         // 任务消息含超限层与上限
         assertThat(captured.get().messages()).anySatisfy(m ->
-                assertThat(m.content()).contains("USER:21").contains("上限 20"));
+                assertThat(m.content()).contains("USER:3").contains("上限 2"));
     }
 
     @Test
@@ -82,7 +87,7 @@ class MemoryCleanupHookTest {
     @Test
     void cleanupSubagentDoesNotReTriggerItself() {
         // 清理子代理 hooks=null，SESSION_END 不派发——自然无递归；此处仅烟测不崩
-        for (int i = 0; i < 21; i++) {
+        for (int i = 0; i < 3; i++) {
             memory.save("x" + i, "d", "c", MemoryType.PROJECT);
         }
         hook.cleanupMemoryHook(new HookEvent(HookEventType.SESSION_END, "sess-1", null));

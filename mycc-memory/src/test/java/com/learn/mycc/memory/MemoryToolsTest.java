@@ -66,12 +66,26 @@ class MemoryToolsTest {
     }
 
     @Test
+    void loadIndexReturnsLayerIndexWithLabel() {
+        storage.save("prefs", "偏好中文回复", "内容", MemoryType.USER);
+        String result = tools.loadIndex(MemoryType.USER);
+        assertThat(result).contains("USER").contains("prefs: 偏好中文回复");
+    }
+
+    @Test
+    void loadIndexEmptyReturnsHint() {
+        assertThat(tools.loadIndex(MemoryType.USER)).contains("暂无记忆");
+    }
+
+    @Test
     void toolsRejectSessionLayer() {
         assertThatThrownBy(() -> tools.readMemory(MemoryType.SESSION, "s"))
                 .isInstanceOf(MyccException.class);
         assertThatThrownBy(() -> tools.saveMemory(MemoryType.SESSION, "s", "d", "c"))
                 .isInstanceOf(MyccException.class);
         assertThatThrownBy(() -> tools.deleteMemory(MemoryType.SESSION, "s"))
+                .isInstanceOf(MyccException.class);
+        assertThatThrownBy(() -> tools.loadIndex(MemoryType.SESSION))
                 .isInstanceOf(MyccException.class);
     }
 }

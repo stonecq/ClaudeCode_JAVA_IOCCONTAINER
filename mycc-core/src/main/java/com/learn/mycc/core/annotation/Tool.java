@@ -34,4 +34,12 @@ public @interface Tool {
      * 递归，memory/skill/plan 等"心智/协调"类工具通常也应置 true 让子代理专注执行。
      */
     boolean subagentExcluded() default false;
+
+    /**
+     * 是否禁止"记忆清理子代理"使用：默认 true（默认排除，不参与记忆清理）。
+     * 记忆相关工具（load_index / read_memory / save_memory / delete_memory）应显式置
+     * false，使其进入清理子代理的工具集——该判断独立于 {@link #subagentExcluded}，
+     * 因此这些工具可同时"对普通子代理隐藏、对清理子代理开放"。
+     */
+    boolean memoryCleanAgentExclude() default true;
 }

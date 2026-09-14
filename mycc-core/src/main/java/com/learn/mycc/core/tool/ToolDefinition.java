@@ -29,6 +29,9 @@ public final class ToolDefinition {
     /** 是否禁止子代理使用；由 @Tool{subagentExcluded} 捕获，缺省 false（允许子代理）。 */
     private final boolean subagentExcluded;
 
+    /** 是否禁止记忆清理子代理使用；由 @Tool{memoryCleanAgentExclude} 捕获，缺省 true（排除）。 */
+    private final boolean memoryCleanAgentExclude;
+
     /**
      * @param name        工具名，不允许为 null 或空白
      * @param description 工具描述，可为空字符串
@@ -36,7 +39,7 @@ public final class ToolDefinition {
      * @param method      工具方法引用，不允许为 null
      */
     public ToolDefinition(String name, String description, Object bean, Method method) {
-        this(name, description, bean, method, ToolRisk.LOW, false);
+        this(name, description, bean, method, ToolRisk.LOW, false, true);
     }
 
     /**
@@ -47,7 +50,7 @@ public final class ToolDefinition {
      * @param risk        工具风险等级，不允许为 null
      */
     public ToolDefinition(String name, String description, Object bean, Method method, ToolRisk risk) {
-        this(name, description, bean, method, risk, false);
+        this(name, description, bean, method, risk, false, true);
     }
 
     /**
@@ -59,14 +62,17 @@ public final class ToolDefinition {
      * @param method          工具方法引用，不允许为 null
      * @param risk            工具风险等级，不允许为 null
      * @param subagentExcluded 是否禁止子代理使用
+     * @param memoryCleanAgentExclude 是否禁止记忆清理子代理使用
      */
-    public ToolDefinition(String name, String description, Object bean, Method method, ToolRisk risk, boolean subagentExcluded) {
+    public ToolDefinition(String name, String description, Object bean, Method method
+            , ToolRisk risk, boolean subagentExcluded, boolean memoryCleanAgentExclude) {
         this.name = name;
         this.description = description;
         this.bean = bean;
         this.method = method;
         this.risk = risk;
         this.subagentExcluded = subagentExcluded;
+        this.memoryCleanAgentExclude = memoryCleanAgentExclude;
     }
 
     /** @return 工具名 */
@@ -97,5 +103,10 @@ public final class ToolDefinition {
     /** @return 是否禁止子代理使用（{@code @Tool.subagentExcluded} 捕获值） */
     public boolean isSubagentExcluded() {
         return subagentExcluded;
+    }
+
+    /** @return 是否禁止记忆清理子代理使用（{@code @Tool.memoryCleanAgentExclude} 捕获值） */
+    public boolean isMemoryCleanAgentExclude() {
+        return memoryCleanAgentExclude;
     }
 }

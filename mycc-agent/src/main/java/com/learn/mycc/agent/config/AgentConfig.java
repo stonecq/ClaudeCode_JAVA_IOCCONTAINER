@@ -4,6 +4,7 @@ import com.learn.mycc.agent.loop.AgentLoop;
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.ai.spi.LlmProvider;
+import com.learn.mycc.compact.Compactor;
 import com.learn.mycc.core.annotation.Bean;
 import com.learn.mycc.core.annotation.Configuration;
 import com.learn.mycc.core.annotation.Scope;
@@ -30,10 +31,11 @@ public class AgentConfig {
     @Bean
     @Scope(ScopeType.PROTOTYPE)
     public AgentLoop agentLoop(InteractionPort port, LlmProvider provider, ToolRegistry registry,
-                               ConfigService config, SessionStore store, HookDispatcher hooks, Session session) {
+                               ConfigService config, SessionStore store, HookDispatcher hooks,
+                               Compactor compactor, Session session) {
         return AgentLoop.withToolRegistry(port, provider, registry,
                 config.get("model", DEFAULT_MODEL),
                 Integer.parseInt(config.get("maxIterations", DEFAULT_MAX_ITERATIONS)),
-                store, session, hooks);
+                store, session, hooks, compactor);
     }
 }

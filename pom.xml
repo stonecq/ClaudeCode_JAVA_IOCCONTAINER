@@ -18,6 +18,7 @@
         <module>mycc-tools</module>
         <module>mycc-ai</module>
         <module>mycc-storage</module>
+        <module>mycc-compact</module>
         <module>mycc-agent</module>
         <module>mycc-planning</module>
         <module>mycc-subagent</module>

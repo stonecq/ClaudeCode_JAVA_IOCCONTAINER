@@ -36,4 +36,34 @@ class ConversationTest {
         assertThat(conversation.messages()).hasSize(2);
         assertThat(conversation.messages()).extracting(Message::content).containsExactly("hi", "again");
     }
+
+    @Test
+    void replaceAllSwapsHistory() {
+        Conversation conversation = new Conversation();
+        conversation.add(Message.user("old"));
+
+        conversation.replaceAll(List.of(Message.user("a"), Message.user("b")));
+
+        assertThat(conversation.messages()).extracting(Message::content).containsExactly("a", "b");
+    }
+
+    @Test
+    void replaceAllWithNullClearsHistory() {
+        Conversation conversation = new Conversation();
+        conversation.add(Message.user("x"));
+
+        conversation.replaceAll(null);
+
+        assertThat(conversation.isEmpty()).isTrue();
+    }
+
+    @Test
+    void fromChatMessageRoundTripsFields() {
+        ChatMessage chat = ChatMessage.assistantWithTools("", List.of(new ToolCall("c1", "read_file", "{}")));
+
+        Message message = Message.fromChatMessage(chat);
+
+        assertThat(message.hasToolCalls()).isTrue();
+        assertThat(message.toChatMessage()).isEqualTo(chat);
+    }
 }

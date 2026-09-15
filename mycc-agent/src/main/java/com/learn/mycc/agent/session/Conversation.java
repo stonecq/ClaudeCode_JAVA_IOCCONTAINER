@@ -21,6 +21,14 @@ public final class Conversation {
         messages.add(message);
     }
 
+    /** 以给定列表整体替换消息历史（上下文压缩回写用）；传入 null 视为清空。 */
+    public void replaceAll(List<Message> newMessages) {
+        messages.clear();
+        if (newMessages != null) {
+            messages.addAll(newMessages);
+        }
+    }
+
     /** @return 当前全部消息的不可变快照，外部修改不会影响内部状态。 */
     public List<Message> messages() {
         return List.copyOf(messages);

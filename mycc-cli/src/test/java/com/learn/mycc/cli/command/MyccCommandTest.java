@@ -1,6 +1,8 @@
 package com.learn.mycc.cli.command;
 
 import com.learn.mycc.agent.config.AgentConfig;
+import com.learn.mycc.compact.Compactor;
+import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.agent.session.Message;
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.agent.storage.SessionStore;
@@ -78,7 +80,8 @@ class MyccCommandTest {
         container.overrideSingleton(CliPort.class, port);
         container.overrideSingleton(ReplLoop.LineInput.class, lineInput);
         container.overrideSingleton(LlmProvider.class, provider);
-        container.register(CliContext.class, ReplLoop.class, HookDispatcher.class, AgentConfig.class, CliConfig.class);
+        container.overrideSingleton(ApplicationConfig.class, new ApplicationConfig(tempDir));
+        container.register(CliContext.class, ReplLoop.class, HookDispatcher.class, AgentConfig.class, CliConfig.class, Compactor.class);
         return container.getBean(CliContext.class);
     }
 

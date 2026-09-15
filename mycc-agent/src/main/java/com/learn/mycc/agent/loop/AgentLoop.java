@@ -5,6 +5,7 @@ import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.agent.storage.SessionStore;
 import com.learn.mycc.agent.tool.ToolCallExecutor;
 import com.learn.mycc.agent.tool.ToolResult;
+import com.learn.mycc.ai.model.ChatMessage;
 import com.learn.mycc.ai.model.ChatRequest;
 import com.learn.mycc.ai.model.ChatResponse;
 import com.learn.mycc.ai.model.StreamChunk;
@@ -12,6 +13,7 @@ import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.ai.model.ToolSpec;
 import com.learn.mycc.ai.spi.LlmProvider;
 import com.learn.mycc.ai.spi.StreamSink;
+import com.learn.mycc.compact.Compactor;
 import com.learn.mycc.core.exception.MyccException;
 import com.learn.mycc.core.hook.HookDecision;
 import com.learn.mycc.core.hook.HookDispatcher;
@@ -55,8 +57,13 @@ public final class AgentLoop {
     private final SessionStore storage;
     /** 钩子派发器；null 表示不触发钩子（保持向后兼容）。 */
     private final HookDispatcher hooks;
+    /** 上下文压缩器；null 表示不压缩（保持向后兼容）。 */
+    private final Compactor compactor;
     /** 事件序号计数器，从 0 递增，用于标识事件顺序；仅单线程 run 内安全递增。 */
     private long seq = 0;
+
+    /** 上下文超长时的 reactive 压缩重试上限。 */
+    private static final int MAX_REACTIVE_RETRIES = 1;
 
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations) {
@@ -76,7 +83,7 @@ public final class AgentLoop {
      */
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session) {
-        this(port, provider, executor, tools, model, maxIterations, storage, session, null);
+        this(port, provider, executor, tools, model, maxIterations, storage, session, null, null);
     }
 
     /**
@@ -86,6 +93,17 @@ public final class AgentLoop {
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session,
                      HookDispatcher hooks) {
+        this(port, provider, executor, tools, model, maxIterations, storage, session, hooks, null);
+    }
+
+    /**
+     * 全量构造（含钩子与压缩器）。
+     * @param hooks     钩子派发器；null 表示不触发钩子
+     * @param compactor 上下文压缩器；null 表示不压缩
+     */
+    public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
+                     List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session,
+                     HookDispatcher hooks, Compactor compactor) {
         this.port = port;
         this.provider = provider;
         this.executor = executor;
@@ -95,6 +113,7 @@ public final class AgentLoop {
         this.storage = storage;
         this.session = session;
         this.hooks = hooks;
+        this.compactor = compactor;
     }
 
     /** 从工具注册表装配：不持久化、新建会话。 */
@@ -114,12 +133,20 @@ public final class AgentLoop {
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations,
                                              SessionStore storage, Session session, HookDispatcher hooks) {
+        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, storage, session, hooks, null);
+    }
+
+    /** 从工具注册表装配并绑定会话、钩子与压缩器；storage/hooks/compactor 均可为 null。 */
+    public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
+                                             ToolRegistry toolRegistry, String model, int maxIterations,
+                                             SessionStore storage, Session session, HookDispatcher hooks,
+                                             Compactor compactor) {
         ParameterSchemaGenerator schemaGenerator = new ParameterSchemaGenerator();
         List<ToolSpec> specs = toolRegistry.getAll().stream()
                 .map(definition -> new ToolSpec(definition.getName(), definition.getDescription(),
                         schemaGenerator.generate(definition.getMethod())))
                 .toList();
-        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage, session, hooks);
+        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage, session, hooks, compactor);
     }
 
     public Session session() {
@@ -157,7 +184,7 @@ public final class AgentLoop {
             // 有工具调用则继续下一轮，否则视为最终回答，输出正文并结束。
             // 用迭代上限而非 while(true) 兜底，防止工具反复调用导致死循环。
             for (int iteration = 0; iteration < maxIterations; iteration++) {
-                ChatResponse response = callProvider(buildRequest());
+                ChatResponse response = callProviderWithCompaction(userMessage);
                 if (response.hasToolCalls()) {
                     handleToolCalls(response);
                     continue;
@@ -229,6 +256,52 @@ public final class AgentLoop {
             throw new MyccException("LLM 调用失败: " + errorRef.get().getMessage(), errorRef.get());
         }
         return responseRef.get();
+    }
+
+    /** 压缩后组装请求并发起调用；API 报上下文超长时先 reactive 压缩再重试（至多 MAX_REACTIVE_RETRIES 次）。 */
+    private ChatResponse callProviderWithCompaction(String activeRequest) {
+        for (int attempt = 0; ; attempt++) {
+            applyCompaction(activeRequest);
+            try {
+                return callProvider(buildRequest());
+            } catch (MyccException e) {
+                if (attempt < MAX_REACTIVE_RETRIES && compactor != null && isContextTooLong(e.getMessage())) {
+                    reactiveCompact(activeRequest);
+                    continue;
+                }
+                throw e;
+            }
+        }
+    }
+
+    /** 调压缩器 prepare 并用结果回写会话；无压缩器或历史未变则不动。 */
+    private void applyCompaction(String activeRequest) {
+        if (compactor == null) {
+            return;
+        }
+        List<ChatMessage> original = session.conversation().toChatMessages();
+        List<ChatMessage> prepared = compactor.prepare(original, activeRequest);
+        if (!prepared.equals(original)) {
+            session.conversation().replaceAll(prepared.stream().map(Message::fromChatMessage).toList());
+        }
+    }
+
+    /** reactive 补救：压缩历史并回写会话。 */
+    private void reactiveCompact(String activeRequest) {
+        List<ChatMessage> current = session.conversation().toChatMessages();
+        session.conversation().replaceAll(
+                compactor.reactiveCompact(current, activeRequest).stream().map(Message::fromChatMessage).toList());
+    }
+
+    /** 识别"上下文超长"类错误信息（大小写不敏感）。 */
+    private static boolean isContextTooLong(String message) {
+        if (message == null) {
+            return false;
+        }
+        String m = message.toLowerCase();
+        return m.contains("prompt_too_long") || m.contains("too many tokens")
+                || m.contains("context length") || m.contains("context_length_exceeded")
+                || m.contains("maximum context");
     }
 
     /** 执行一次响应中的全部工具调用：LLM 本轮正文与其工具调用先入会话，

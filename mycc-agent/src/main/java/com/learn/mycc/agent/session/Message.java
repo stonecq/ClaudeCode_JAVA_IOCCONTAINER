@@ -49,4 +49,9 @@ public record Message(ChatMessage.Role role, String content, String toolCallId, 
     public ChatMessage toChatMessage() {
         return new ChatMessage(role, content, toolCallId, toolCalls);
     }
+
+    /** @return 由 {@link ChatMessage} 反向构造（压缩回写：压缩器在 ChatMessage 层工作后再映射回会话）。 */
+    public static Message fromChatMessage(ChatMessage chatMessage) {
+        return new Message(chatMessage.role(), chatMessage.content(), chatMessage.toolCallId(), chatMessage.toolCalls());
+    }
 }

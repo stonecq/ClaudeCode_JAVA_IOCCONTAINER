@@ -16,6 +16,7 @@ import com.learn.mycc.core.context.IocContainer;
 import com.learn.mycc.core.hook.HookDispatcher;
 import com.learn.mycc.core.tool.ToolDefinition;
 import com.learn.mycc.storage.config.ConfigService;
+import com.learn.mycc.storage.config.StorageConfig;
 import com.learn.mycc.storage.file.FileStorage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,7 +82,7 @@ class MyccCommandTest {
         container.overrideSingleton(ReplLoop.LineInput.class, lineInput);
         container.overrideSingleton(LlmProvider.class, provider);
         container.overrideSingleton(ApplicationConfig.class, new ApplicationConfig(tempDir));
-        container.register(CliContext.class, ReplLoop.class, HookDispatcher.class, AgentConfig.class, CliConfig.class, Compactor.class);
+        container.register(CliContext.class, ReplLoop.class, HookDispatcher.class, AgentConfig.class, CliConfig.class, Compactor.class, StorageConfig.class);
         return container.getBean(CliContext.class);
     }
 

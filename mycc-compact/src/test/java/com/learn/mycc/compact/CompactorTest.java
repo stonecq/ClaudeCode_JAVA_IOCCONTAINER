@@ -6,6 +6,7 @@ import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.ai.provider.MockProvider;
 import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.storage.config.ConfigService;
+import com.learn.mycc.storage.file.WorkspaceStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -28,7 +29,7 @@ class CompactorTest {
     @BeforeEach
     void setUp() {
         provider = MockProvider.scripted(request -> ChatResponse.text("摘要：目标是 X，剩 Y"));
-        compactor = new Compactor(provider, new ConfigService(), new ApplicationConfig(tempDir));
+        compactor = new Compactor(provider, new ConfigService(), new WorkspaceStorage(new ApplicationConfig(tempDir)));
     }
 
     @Test

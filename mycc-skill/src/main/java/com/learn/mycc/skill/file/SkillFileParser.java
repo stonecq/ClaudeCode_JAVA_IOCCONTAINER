@@ -48,8 +48,14 @@ final class SkillFileParser {
         }
     }
 
-    /** 解析文本：frontmatter 的键值对进元数据，闭合标记后的内容为指令正文。 */
-    private static ParsedSkill parse(String name, String text) {
+    /**
+     * 解析技能文本（供已从存储读入内容的加载器直接使用）。
+     *
+     * @param name 技能名（由加载器从存储 key 段得出，如 {@code skills/<name>/SKILL.md} 的 name）
+     * @param text SKILL.md 全文
+     * @return 解析结果
+     */
+    public static ParsedSkill parse(String name, String text) {
         List<String> lines = text.lines().toList();
         int closeIdx = frontmatterEnd(lines);
         if (closeIdx < 0) {

@@ -9,6 +9,7 @@ import com.learn.mycc.compact.Compactor;
 import com.learn.mycc.core.config.ApplicationConfig;
 import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.storage.config.ConfigService;
+import com.learn.mycc.storage.file.WorkspaceStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -26,7 +27,7 @@ class CompactionFlowTest {
     @Test
     void noCompactionWhenUnderLimits() {
         MockProvider provider = MockProvider.scripted(request -> ChatResponse.text("done"));
-        Compactor compactor = new Compactor(provider, new ConfigService(), new ApplicationConfig(tempDir));
+        Compactor compactor = new Compactor(provider, new ConfigService(), new WorkspaceStorage(new ApplicationConfig(tempDir)));
         Session session = Session.create();
         AgentLoop agent = AgentLoop.withToolRegistry(new RecordingPort(), provider, new ToolRegistry(),
                 "mock", 10, null, session, null, compactor);
@@ -39,7 +40,7 @@ class CompactionFlowTest {
     @Test
     void longHistoryIsSnipCompactedOnRoundStart() {
         MockProvider provider = MockProvider.scripted(request -> ChatResponse.text("done"));
-        Compactor compactor = new Compactor(provider, new ConfigService(), new ApplicationConfig(tempDir));
+        Compactor compactor = new Compactor(provider, new ConfigService(), new WorkspaceStorage(new ApplicationConfig(tempDir)));
         Session session = Session.create();
         for (int i = 0; i < 60; i++) {
             session.addMessage(Message.user("m" + i));
@@ -64,7 +65,7 @@ class CompactionFlowTest {
             }
             return ChatResponse.text("recovered");
         });
-        Compactor compactor = new Compactor(provider, new ConfigService(), new ApplicationConfig(tempDir));
+        Compactor compactor = new Compactor(provider, new ConfigService(), new WorkspaceStorage(new ApplicationConfig(tempDir)));
         Session session = Session.create();
         AgentLoop agent = AgentLoop.withToolRegistry(new RecordingPort(), provider, new ToolRegistry(),
                 "mock", 10, null, session, null, compactor);

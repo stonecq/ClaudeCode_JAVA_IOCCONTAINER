@@ -7,6 +7,9 @@ import com.learn.mycc.cli.command.ResumeCommand;
 import com.learn.mycc.cli.command.SessionsCommand;
 import com.learn.mycc.cli.command.ToolsCommand;
 import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.ui.InteractionPort;
+import com.learn.mycc.web.WebCommand;
+import com.learn.mycc.web.WebPort;
 import picocli.CommandLine;
 
 import java.io.PrintWriter;
@@ -29,6 +32,9 @@ public final class Main {
         MyccApplication application = new MyccApplication();
         IocContainer container = application.getIocContainer();
         try {
+            // 全部 bean 在 start 前注册完毕：web 模式把 InteractionPort 注册为 WebPort（唯一），
+            // CLI 模式由 CliPort 的 @Bean 承担；start 之后不再有任何注册/覆盖。
+            registerInteractionPortForMode(container, args);
             application.start();
             // 只读命令不构造 AgentLoop、不调用 LLM，无 key 仍可用；仅进入对话的裸 mycc / resume
             // 需要 LLM，缺 key 时输出引导提示后退出非 0
@@ -47,6 +53,7 @@ public final class Main {
                     .addSubcommand("sessions", container.getBean(SessionsCommand.class))
                     .addSubcommand("tools", container.getBean(ToolsCommand.class))
                     .addSubcommand("config", container.getBean(ConfigCommand.class))
+                    .addSubcommand("web", container.getBean(WebCommand.class))
                     .execute(args);
             // JLine PrintWriter 为缓冲输出，System.exit 不触发 close/autoflush，须先显式 flush
             PrintWriter out = container.getBean(CliPort.class).writer();
@@ -56,6 +63,18 @@ public final class Main {
         } finally {
             // 异常路径（start/execute 失败）兜底销毁；normal 路径已 close，close 幂等
             container.close();
+        }
+    }
+
+    /**
+     * 按启动模式在 start 前注册交互端口：web 模式注册 {@link WebPort}（占据 {@code InteractionPort}
+     * 唯一键，屏蔽接口回退到 CliPort）；其余模式不动，由 CliPort 的 {@code @Bean} 承担。
+     */
+    private static void registerInteractionPortForMode(IocContainer container, String[] args) {
+        if (args.length > 0 && "web".equals(args[0])) {
+            WebPort webPort = new WebPort();
+            container.registerSingleton(WebPort.class, webPort);
+            container.registerSingleton(InteractionPort.class, webPort);
         }
     }
 

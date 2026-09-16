@@ -70,6 +70,11 @@
             <artifactId>mycc-compact</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.learn.mycc</groupId>
+            <artifactId>mycc-web</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

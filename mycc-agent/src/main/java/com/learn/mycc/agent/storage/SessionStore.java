@@ -119,6 +119,16 @@ public final class SessionStore {
         }
     }
 
+    /**
+     * 删除会话：移除 {@code session/<id>.json}。
+     *
+     * @param id 会话 id
+     * @return 存在并被删除返回 true；原本不存在返回 false
+     */
+    public boolean delete(String id) {
+        return storage.delete(key(id));
+    }
+
     /** 由会话 id 拼成存储 key：{@code session/<id>.json}。 */
     private static String key(String id) {
         return PREFIX + id + SUFFIX;

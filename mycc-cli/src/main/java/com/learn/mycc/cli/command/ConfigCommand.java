@@ -2,6 +2,7 @@ package com.learn.mycc.cli.command;
 
 import com.learn.mycc.cli.CliContext;
 import com.learn.mycc.core.annotation.Component;
+import com.learn.mycc.storage.config.ConfigDefaults;
 import picocli.CommandLine.Command;
 
 import java.util.concurrent.Callable;
@@ -19,7 +20,7 @@ public final class ConfigCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        ctx.out().println("showReasoning = " + ctx.config().get("showReasoning", "true"));
+        ctx.out().println(ConfigDefaults.CLI_SHOW_REASONING + " = " + ctx.config().get(ConfigDefaults.CLI_SHOW_REASONING).orElse(""));
         return 0;
     }
 }

@@ -184,13 +184,13 @@ class MyccCommandTest {
 
     @Test
     void configPrintsEffectiveValueFromFile() throws Exception {
-        Path cfg = tempDir.resolve("config");
-        Files.writeString(cfg, "showReasoning=false\n", StandardCharsets.UTF_8);
+        Path cfg = tempDir.resolve("config.json");
+        Files.writeString(cfg, "{\"cli\":{\"showReasoning\":false}}", StandardCharsets.UTF_8);
 
         int code = exec(newContext("/exit\n", newStore(), new ConfigService(cfg)), "config");
 
         assertThat(code).isEqualTo(0);
-        assertThat(buffer.toString()).isEqualTo("showReasoning = false" + nl);
+        assertThat(buffer.toString()).isEqualTo("cli.showReasoning = false" + nl);
     }
 
     @Test
@@ -198,6 +198,6 @@ class MyccCommandTest {
         int code = exec(newContext("/exit\n", newStore(), emptyConfig()), "config");
 
         assertThat(code).isEqualTo(0);
-        assertThat(buffer.toString()).isEqualTo("showReasoning = true" + nl);
+        assertThat(buffer.toString()).isEqualTo("cli.showReasoning = true" + nl);
     }
 }

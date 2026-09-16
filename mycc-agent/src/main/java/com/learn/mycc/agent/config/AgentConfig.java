@@ -11,6 +11,7 @@ import com.learn.mycc.core.annotation.Scope;
 import com.learn.mycc.core.annotation.ScopeType;
 import com.learn.mycc.core.hook.HookDispatcher;
 import com.learn.mycc.core.tool.ToolRegistry;
+import com.learn.mycc.storage.config.ConfigDefaults;
 import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.ui.InteractionPort;
 
@@ -23,19 +24,15 @@ import com.learn.mycc.ui.InteractionPort;
 @Configuration
 public class AgentConfig {
 
-    /** 模型名未配置时的默认值。 */
-    static final String DEFAULT_MODEL = "deepseek-v4-flash";
-    /** 单轮最大迭代次数未配置时的默认值。 */
-    static final String DEFAULT_MAX_ITERATIONS = "10";
-
     @Bean
     @Scope(ScopeType.PROTOTYPE)
     public AgentLoop agentLoop(InteractionPort port, LlmProvider provider, ToolRegistry registry,
                                ConfigService config, SessionStore store, HookDispatcher hooks,
                                Compactor compactor, Session session) {
         return AgentLoop.withToolRegistry(port, provider, registry,
-                config.get("model", DEFAULT_MODEL),
-                Integer.parseInt(config.get("maxIterations", DEFAULT_MAX_ITERATIONS)),
-                store, session, hooks, compactor);
+                config.getString(ConfigDefaults.AGENT_MODEL),
+                config.getInt(ConfigDefaults.AGENT_MAX_ITERATIONS),
+                store, session, hooks, compactor,
+                config.getInt(ConfigDefaults.AGENT_MAX_REACTIVE_RETRIES));
     }
 }

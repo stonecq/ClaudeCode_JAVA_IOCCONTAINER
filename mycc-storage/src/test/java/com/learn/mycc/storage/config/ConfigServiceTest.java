@@ -16,53 +16,69 @@ class ConfigServiceTest {
     @TempDir
     Path tempDir;
 
+    private Path configFile() {
+        return tempDir.resolve("config.json");
+    }
+
     @AfterEach
     void clearSystemProperty() {
-        System.clearProperty("mycc.model");
+        System.clearProperty("mycc.agent.model");
     }
 
     @Test
-    void usesDefaultWhenNothingConfigured() {
-        ConfigService config = new ConfigService(tempDir.resolve("config"));
-        assertThat(config.get("model", "deepseek-v4-flash")).isEqualTo("deepseek-v4-flash");
+    void generatesDefaultConfigFileWhenMissing() throws IOException {
+        new ConfigService(configFile());
+
+        assertThat(Files.isRegularFile(configFile())).isTrue();
+        assertThat(Files.readString(configFile(), StandardCharsets.UTF_8))
+                .contains("\"agent\"").contains("deepseek-v4-flash").contains("\"compact\"");
     }
 
     @Test
-    void missingKeyReturnsEmpty() {
-        ConfigService config = new ConfigService(tempDir.resolve("config"));
-        assertThat(config.get("model")).isEmpty();
+    void usesBuiltinDefaultWhenNothingConfigured() {
+        ConfigService config = new ConfigService(configFile());
+        assertThat(config.get(ConfigDefaults.AGENT_MODEL)).contains("deepseek-v4-flash");
+        assertThat(config.getInt(ConfigDefaults.AGENT_MAX_ITERATIONS)).isEqualTo(10);
+        assertThat(config.getBool(ConfigDefaults.CLI_SHOW_REASONING)).isTrue();
     }
 
     @Test
-    void loadsValueFromConfigFile() throws IOException {
-        writeConfig("model=file-model\nbase-url=https://api.example.com\n");
-        ConfigService config = new ConfigService(tempDir.resolve("config"));
-        assertThat(config.get("model")).contains("file-model");
-        assertThat(config.get("base-url")).contains("https://api.example.com");
+    void unregisteredKeyReturnsEmpty() {
+        ConfigService config = new ConfigService(configFile());
+        assertThat(config.get("nope.nothing")).isEmpty();
     }
 
     @Test
-    void configFileOverridesDefault() throws IOException {
-        writeConfig("model=file-model\n");
-        ConfigService config = new ConfigService(tempDir.resolve("config"));
-        assertThat(config.get("model", "default")).isEqualTo("file-model");
+    void loadsNestedConfigFileFlattenedToDottedKey() throws IOException {
+        Files.writeString(configFile(), "{\"agent\":{\"model\":\"file-model\"}}", StandardCharsets.UTF_8);
+        ConfigService config = new ConfigService(configFile());
+        assertThat(config.get(ConfigDefaults.AGENT_MODEL)).contains("file-model");
+    }
+
+    @Test
+    void configFileOverridesBuiltinDefault() throws IOException {
+        Files.writeString(configFile(), "{\"compact\":{\"maxMessages\":7}}", StandardCharsets.UTF_8);
+        ConfigService config = new ConfigService(configFile());
+        assertThat(config.getInt(ConfigDefaults.COMPACT_MAX_MESSAGES)).isEqualTo(7);
     }
 
     @Test
     void systemPropertyOverridesConfigFile() throws IOException {
-        writeConfig("model=file-model\n");
-        System.setProperty("mycc.model", "sys-model");
-        ConfigService config = new ConfigService(tempDir.resolve("config"));
-        assertThat(config.get("model")).contains("sys-model");
+        Files.writeString(configFile(), "{\"agent\":{\"model\":\"file-model\"}}", StandardCharsets.UTF_8);
+        System.setProperty("mycc.agent.model", "sys-model");
+        ConfigService config = new ConfigService(configFile());
+        assertThat(config.get(ConfigDefaults.AGENT_MODEL)).contains("sys-model");
     }
 
     @Test
-    void ignoresMissingConfigFile() {
-        ConfigService config = new ConfigService(tempDir.resolve("nonexistent-config"));
-        assertThat(config.get("model", "fallback")).isEqualTo("fallback");
+    void envNameMapsDotsAndCamelCaseToSnakeUpper() {
+        assertThat(ConfigService.envName("agent.maxIterations")).isEqualTo("MYCC_AGENT_MAX_ITERATIONS");
+        assertThat(ConfigService.envName("compact.resultBudget")).isEqualTo("MYCC_COMPACT_RESULT_BUDGET");
     }
 
-    private void writeConfig(String content) throws IOException {
-        Files.writeString(tempDir.resolve("config"), content, StandardCharsets.UTF_8);
+    @Test
+    void workpathDefaultsToCurrentDirMarker() {
+        ConfigService config = new ConfigService(configFile());
+        assertThat(config.get(ConfigDefaults.WORKSPACE_PATH)).contains(".");
     }
 }

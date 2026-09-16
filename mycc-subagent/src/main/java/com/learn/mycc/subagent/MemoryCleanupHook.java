@@ -8,6 +8,7 @@ import com.learn.mycc.core.hook.HookEventType;
 import com.learn.mycc.core.tool.ToolRegistry;
 import com.learn.mycc.memory.MemoryStorage;
 import com.learn.mycc.memory.MemoryType;
+import com.learn.mycc.storage.config.ConfigDefaults;
 import com.learn.mycc.storage.config.ConfigService;
 
 import java.util.ArrayList;
@@ -25,8 +26,6 @@ import java.util.List;
 @Component
 public class MemoryCleanupHook {
 
-    /** 每层记忆条数上限的默认值；可用配置键 {@code memory.maxEntriesPerLayer} 覆盖。 */
-    static final String DEFAULT_MAX_ENTRIES = "20";
     /** 清理子代理专属系统提示，收敛其职责为"只做记忆整理"。 */
     static final String CLEANUP_PROMPT = "你是记忆整理代理，只做记忆整理，不执行其它任务。";
 
@@ -49,7 +48,7 @@ public class MemoryCleanupHook {
         if (event == null || event.sessionId() == null) {
             return;
         }
-        int limit = Integer.parseInt(config.get("memory.maxEntriesPerLayer", DEFAULT_MAX_ENTRIES));
+        int limit = config.getInt(ConfigDefaults.MEMORY_MAX_ENTRIES_PER_LAYER);
         List<String> over = new ArrayList<>();
         for (MemoryType type : new MemoryType[]{MemoryType.USER, MemoryType.PROJECT}) {
             int count = memory.entryCount(type);

@@ -59,11 +59,13 @@ public final class AgentLoop {
     private final HookDispatcher hooks;
     /** 上下文压缩器；null 表示不压缩（保持向后兼容）。 */
     private final Compactor compactor;
+    /** reactive 压缩重试上限（来自配置 agent.maxReactiveRetries）。 */
+    private final int maxReactiveRetries;
     /** 事件序号计数器，从 0 递增，用于标识事件顺序；仅单线程 run 内安全递增。 */
     private long seq = 0;
 
-    /** 上下文超长时的 reactive 压缩重试上限。 */
-    private static final int MAX_REACTIVE_RETRIES = 1;
+    /** reactive 压缩重试上限的默认值（旧构造未显式给出时兜底）。 */
+    private static final int DEFAULT_MAX_REACTIVE_RETRIES = 1;
 
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations) {
@@ -83,7 +85,7 @@ public final class AgentLoop {
      */
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session) {
-        this(port, provider, executor, tools, model, maxIterations, storage, session, null, null);
+        this(port, provider, executor, tools, model, maxIterations, storage, session, null, null, DEFAULT_MAX_REACTIVE_RETRIES);
     }
 
     /**
@@ -93,17 +95,18 @@ public final class AgentLoop {
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session,
                      HookDispatcher hooks) {
-        this(port, provider, executor, tools, model, maxIterations, storage, session, hooks, null);
+        this(port, provider, executor, tools, model, maxIterations, storage, session, hooks, null, DEFAULT_MAX_REACTIVE_RETRIES);
     }
 
     /**
-     * 全量构造（含钩子与压缩器）。
-     * @param hooks     钩子派发器；null 表示不触发钩子
-     * @param compactor 上下文压缩器；null 表示不压缩
+     * 全量构造（含钩子、压缩器与 reactive 重试上限）。
+     * @param hooks              钩子派发器；null 表示不触发钩子
+     * @param compactor          上下文压缩器；null 表示不压缩
+     * @param maxReactiveRetries 上下文超长时 reactive 压缩的最大重试次数（≥0）
      */
     public AgentLoop(InteractionPort port, LlmProvider provider, ToolCallExecutor executor,
                      List<ToolSpec> tools, String model, int maxIterations, SessionStore storage, Session session,
-                     HookDispatcher hooks, Compactor compactor) {
+                     HookDispatcher hooks, Compactor compactor, int maxReactiveRetries) {
         this.port = port;
         this.provider = provider;
         this.executor = executor;
@@ -114,6 +117,7 @@ public final class AgentLoop {
         this.session = session;
         this.hooks = hooks;
         this.compactor = compactor;
+        this.maxReactiveRetries = maxReactiveRetries;
     }
 
     /** 从工具注册表装配：不持久化、新建会话。 */
@@ -133,20 +137,30 @@ public final class AgentLoop {
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations,
                                              SessionStore storage, Session session, HookDispatcher hooks) {
-        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, storage, session, hooks, null);
+        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, storage, session, hooks, null, DEFAULT_MAX_REACTIVE_RETRIES);
     }
 
-    /** 从工具注册表装配并绑定会话、钩子与压缩器；storage/hooks/compactor 均可为 null。 */
+    /** 从工具注册表装配并绑定会话、钩子与压缩器（reactive 重试用默认）。 */
     public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
                                              ToolRegistry toolRegistry, String model, int maxIterations,
                                              SessionStore storage, Session session, HookDispatcher hooks,
                                              Compactor compactor) {
+        return withToolRegistry(port, provider, toolRegistry, model, maxIterations, storage, session,
+                hooks, compactor, DEFAULT_MAX_REACTIVE_RETRIES);
+    }
+
+    /** 从工具注册表装配并绑定会话、钩子、压缩器与 reactive 重试上限；storage/hooks/compactor 均可为 null。 */
+    public static AgentLoop withToolRegistry(InteractionPort port, LlmProvider provider,
+                                             ToolRegistry toolRegistry, String model, int maxIterations,
+                                             SessionStore storage, Session session, HookDispatcher hooks,
+                                             Compactor compactor, int maxReactiveRetries) {
         ParameterSchemaGenerator schemaGenerator = new ParameterSchemaGenerator();
         List<ToolSpec> specs = toolRegistry.getAll().stream()
                 .map(definition -> new ToolSpec(definition.getName(), definition.getDescription(),
                         schemaGenerator.generate(definition.getMethod())))
                 .toList();
-        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations, storage, session, hooks, compactor);
+        return new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry), specs, model, maxIterations,
+                storage, session, hooks, compactor, maxReactiveRetries);
     }
 
     public Session session() {
@@ -265,7 +279,7 @@ public final class AgentLoop {
             try {
                 return callProvider(buildRequest());
             } catch (MyccException e) {
-                if (attempt < MAX_REACTIVE_RETRIES && compactor != null && isContextTooLong(e.getMessage())) {
+                if (attempt < maxReactiveRetries && compactor != null && isContextTooLong(e.getMessage())) {
                     reactiveCompact(activeRequest);
                     continue;
                 }

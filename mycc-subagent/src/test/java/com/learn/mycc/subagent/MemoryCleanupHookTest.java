@@ -45,8 +45,8 @@ class MemoryCleanupHookTest {
         });
         SubagentService subagents = new SubagentService(provider, registry, new RecordingPort(), new ConfigService());
         // 阈值注入小值（2），测试不耦合生产默认值
-        Path configFile = tempDir.resolve("config");
-        Files.writeString(configFile, "memory.maxEntriesPerLayer=2");
+        Path configFile = tempDir.resolve("config.json");
+        Files.writeString(configFile, "{\"memory\":{\"maxEntriesPerLayer\":2}}");
         hook = new MemoryCleanupHook(memory, subagents, registry, new ConfigService(configFile));
     }
 

@@ -6,6 +6,7 @@ import com.learn.mycc.cli.repl.CliPermissionPrompt;
 import com.learn.mycc.core.annotation.Bean;
 import com.learn.mycc.core.annotation.Configuration;
 import com.learn.mycc.core.permission.UserConfirmation;
+import com.learn.mycc.storage.config.ConfigDefaults;
 import com.learn.mycc.storage.config.ConfigService;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
@@ -58,7 +59,7 @@ public class CliConfig {
     @Bean
     public CliPort cliPort(Terminal terminal, PrintWriter out, ConfigService config) {
         boolean ansi = CliPort.supportsAnsi(terminal);
-        boolean showReasoning = Boolean.parseBoolean(config.get("showReasoning", "true"));
+        boolean showReasoning = config.getBool(ConfigDefaults.CLI_SHOW_REASONING);
         return new CliPort(out, ansi, showReasoning);
     }
 

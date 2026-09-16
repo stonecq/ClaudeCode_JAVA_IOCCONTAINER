@@ -10,6 +10,7 @@ import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Inject;
 import com.learn.mycc.core.tool.ParameterSchemaGenerator;
 import com.learn.mycc.core.tool.ToolRegistry;
+import com.learn.mycc.storage.config.ConfigDefaults;
 import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.ui.InteractionPort;
 
@@ -28,10 +29,6 @@ public class SubagentService {
 
     /** 子代理默认系统提示；调用方可覆盖。 */
     static final String DEFAULT_SUBAGENT_PROMPT = "你是子代理，专注执行被派发的子任务，直接给出可用的结果。";
-    /** 模型名未配置时的默认值（与 AgentConfig 一致）。 */
-    private static final String DEFAULT_MODEL = "deepseek-v4-flash";
-    /** 子代理单轮最大迭代次数的默认值。 */
-    private static final String DEFAULT_MAX_ITERATIONS = "10";
 
     private final LlmProvider provider;
     private final ToolRegistry toolRegistry;
@@ -82,8 +79,8 @@ public class SubagentService {
         Session subSession = Session.create();
         subSession.addMessage(Message.system(prompt));
 
-        String model = config.get("model", DEFAULT_MODEL);
-        int maxIterations = Integer.parseInt(config.get("maxIterations", DEFAULT_MAX_ITERATIONS));
+        String model = config.getString(ConfigDefaults.AGENT_MODEL);
+        int maxIterations = config.getInt(ConfigDefaults.AGENT_MAX_ITERATIONS);
         AgentLoop subAgent = new AgentLoop(port, provider, new ToolCallExecutor(toolRegistry),
                 subTools, model, maxIterations, null, subSession, null);
         return subAgent.run(task);

@@ -12,6 +12,13 @@
 
     <artifactId>mycc-ui</artifactId>
     <name>mycc-ui</name>
-    <description>UI 抽象：InteractionPort/OutputEvent 接口（纯接口，无依赖）</description>
+    <description>UI 抽象：InteractionPort/OutputEvent/UiAdapter 接口</description>
+    <dependencies>
+        <dependency>
+            <groupId>com.learn.mycc</groupId>
+            <artifactId>mycc-core</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
 
 </project>

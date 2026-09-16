@@ -1,6 +1,5 @@
 package com.learn.mycc.cli;
 
-import com.learn.mycc.cli.ReplLoop.AgentRunner;
 import com.learn.mycc.cli.ReplLoop.LineInput;
 import org.junit.jupiter.api.Test;
 
@@ -10,7 +9,6 @@ import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,34 +27,56 @@ class ReplLoopTest {
         return () -> reader.readLine();
     }
 
+    /** 记录驱动与斜杠命令的假宿主。 */
+    static final class FakeHost implements ReplLoop.Host {
+        final List<String> turns = new ArrayList<>();
+        final List<String> slashes = new ArrayList<>();
+        RuntimeException turnError;
+
+        @Override
+        public String sessionId() {
+            return "s1";
+        }
+
+        @Override
+        public void runTurn(String userMessage) {
+            turns.add(userMessage);
+            if (turnError != null) {
+                throw turnError;
+            }
+        }
+
+        @Override
+        public void handleSlashCommand(String line) {
+            slashes.add(line);
+        }
+    }
+
     @Test
     void exitsOnSlashExitCommand() {
-        List<String> ran = new ArrayList<>();
-        new ReplLoop(port(false, true), ran::add, input("/exit\n"), "s1").run();
+        FakeHost host = new FakeHost();
+        new ReplLoop(port(false, true), host, input("/exit\n")).run();
 
-        assertThat(ran).isEmpty();
+        assertThat(host.turns).isEmpty();
     }
 
     @Test
     void sendsUserEventBeforeRunningAgent() {
-        List<String> ran = new ArrayList<>();
-        new ReplLoop(port(false, true), ran::add, input("第一句\n/exit\n"), "s1").run();
+        FakeHost host = new FakeHost();
+        new ReplLoop(port(false, true), host, input("第一句\n/exit\n")).run();
 
-        assertThat(ran).containsExactly("第一句");
+        assertThat(host.turns).containsExactly("第一句");
         assertThat(buffer.toString()).isEqualTo("我 > 第一句" + nl);
     }
 
     @Test
     void toleratesRoundExceptionAndContinues() {
-        AtomicInteger calls = new AtomicInteger();
-        AgentRunner runner = msg -> {
-            if (calls.incrementAndGet() == 1) {
-                throw new IllegalStateException("boom");
-            }
-        };
-        new ReplLoop(port(false, true), runner, input("坏句\n好句\n/exit\n"), "s1").run();
+        FakeHost host = new FakeHost();
+        host.turnError = new IllegalStateException("boom");
+        // 每轮都抛，但循环不应中断：两轮都被驱动
+        new ReplLoop(port(false, true), host, input("坏句\n好句\n/exit\n")).run();
 
-        assertThat(calls.get()).isEqualTo(2);
+        assertThat(host.turns).containsExactly("坏句", "好句");
         assertThat(buffer.toString())
                 .contains("本轮出错: boom")
                 .contains("我 > 坏句")
@@ -65,33 +85,40 @@ class ReplLoopTest {
 
     @Test
     void clearSendsEscapeSequenceWhenAnsiEnabled() {
-        new ReplLoop(port(true, false), msg -> {
-        }, input("/clear\n/exit\n"), "s1").run();
+        new ReplLoop(port(true, false), new FakeHost(), input("/clear\n/exit\n")).run();
 
         assertThat(buffer.toString()).contains("\033[2J\033[H");
     }
 
     @Test
     void clearDoesNotEmitEscapeWhenAnsiDisabled() {
-        new ReplLoop(port(false, false), msg -> {
-        }, input("/clear\n/exit\n"), "s1").run();
+        new ReplLoop(port(false, false), new FakeHost(), input("/clear\n/exit\n")).run();
 
         assertThat(buffer.toString()).doesNotContain("\033");
     }
 
     @Test
     void endsOnEof() {
-        List<String> ran = new ArrayList<>();
-        new ReplLoop(port(false, true), ran::add, input("一句"), "s1").run();
+        FakeHost host = new FakeHost();
+        new ReplLoop(port(false, true), host, input("一句")).run();
 
-        assertThat(ran).containsExactly("一句");
+        assertThat(host.turns).containsExactly("一句");
     }
 
     @Test
     void ignoresBlankLines() {
-        List<String> ran = new ArrayList<>();
-        new ReplLoop(port(false, true), ran::add, input("\n  \nhi\n/exit\n"), "s1").run();
+        FakeHost host = new FakeHost();
+        new ReplLoop(port(false, true), host, input("\n  \nhi\n/exit\n")).run();
 
-        assertThat(ran).containsExactly("hi");
+        assertThat(host.turns).containsExactly("hi");
+    }
+
+    @Test
+    void dispatchesUnknownSlashCommandsToHost() {
+        FakeHost host = new FakeHost();
+        new ReplLoop(port(false, true), host, input("/sessions\n/resume x\n/exit\n")).run();
+
+        assertThat(host.slashes).containsExactly("/sessions", "/resume x");
+        assertThat(host.turns).isEmpty();
     }
 }

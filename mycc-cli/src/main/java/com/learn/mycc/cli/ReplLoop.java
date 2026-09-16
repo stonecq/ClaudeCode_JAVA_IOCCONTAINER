@@ -1,9 +1,5 @@
 package com.learn.mycc.cli;
 
-import com.learn.mycc.core.annotation.Component;
-import com.learn.mycc.core.annotation.Inject;
-import com.learn.mycc.core.annotation.Scope;
-import com.learn.mycc.core.annotation.ScopeType;
 import com.learn.mycc.ui.OutputEvent;
 import com.learn.mycc.ui.OutputEventType;
 import org.jline.reader.LineReader;
@@ -11,16 +7,12 @@ import org.jline.reader.LineReader;
 import java.io.IOException;
 
 /**
- * 交互主循环：读行 → 以 USER 事件回显 → 驱动 agent 一轮；逐轮异常容忍，不崩会话。
- * <p>
- * 原型 {@link Component}：每轮交互由容器 {@code getBean(ReplLoop.class, port, agent::run,
- * input, sessionId)} 全参覆盖创建（port/runner/input/sessionId 为调用侧绑定值，不入容器）。
- * 通过两个函数式缝解耦：{@link LineInput} 供生产接 JLine LineReader、测试接 BufferedReader；
- * {@link AgentRunner} 供生产接 {@code agent::run}、测试注入抛异常 lambda。
- * 斜杠命令：/exit 结束；/clear 清屏（仅 ANSI 可用时有效）。EOF（Ctrl+D）结束循环。</p>
+ * 交互主循环：读行 → 普通输入驱动 agent 一轮、斜杠命令交给 {@link Host}；逐轮异常容忍，不崩会话。
+ * <p>不依赖容器：由 {@link CliAdapter} 直接创建。内置命令 {@code /exit}（退出）、{@code /clear}（清屏）；
+ * 其余 {@code /xxx}（如 /sessions、/resume、/tools、/config）交由 {@link Host#handleSlashCommand}。</p>
+ * <p>解耦缝：{@link LineInput}（生产接 JLine LineReader、测试接 BufferedReader）；{@link Host}
+ * （生产接 CliSessionHost、测试注入 fake）。</p>
  */
-@Component
-@Scope(ScopeType.PROTOTYPE)
 public final class ReplLoop {
 
     /** 一行输入来源；返回 null 表示 EOF（Ctrl+D）。 */
@@ -29,23 +21,26 @@ public final class ReplLoop {
         String readLine() throws IOException;
     }
 
-    /** 驱动一轮对话；异常由循环捕获并以 ERROR 事件显示后继续下一轮。 */
-    @FunctionalInterface
-    public interface AgentRunner {
-        void run(String userMessage);
+    /** 会话宿主：提供当前会话 id、驱动一轮对话、处理斜杠命令。 */
+    public interface Host {
+        /** 当前会话 id（用于事件归属）。 */
+        String sessionId();
+
+        /** 驱动当前会话一轮：用户消息交给 agent，输出经端口下发。 */
+        void runTurn(String userMessage);
+
+        /** 处理一条斜杠命令（如 /sessions、/resume x）；未知命令由实现给出提示。 */
+        void handleSlashCommand(String line);
     }
 
     private final CliPort port;
-    private final AgentRunner runner;
+    private final Host host;
     private final LineInput input;
-    private final String sessionId;
 
-    @Inject
-    public ReplLoop(CliPort port, AgentRunner runner, LineInput input, String sessionId) {
+    public ReplLoop(CliPort port, Host host, LineInput input) {
         this.port = port;
-        this.runner = runner;
+        this.host = host;
         this.input = input;
-        this.sessionId = sessionId;
     }
 
     /** 用 JLine LineReader 造输入源：EOF / 中断（Ctrl+C）统一视为结束（返回 null）。 */
@@ -66,7 +61,7 @@ public final class ReplLoop {
             try {
                 line = input.readLine();
             } catch (IOException e) {
-                port.onEvent(new OutputEvent(OutputEventType.ERROR, "读取输入失败: " + e.getMessage(), sessionId, 0));
+                emitError("读取输入失败: " + e.getMessage());
                 continue;
             }
             if (line == null) {
@@ -83,12 +78,20 @@ public final class ReplLoop {
                 port.clear();
                 continue;
             }
-            port.onEvent(new OutputEvent(OutputEventType.USER, line, sessionId, 0));
+            if (line.startsWith("/")) {
+                host.handleSlashCommand(line);
+                continue;
+            }
+            port.onEvent(new OutputEvent(OutputEventType.USER, line, host.sessionId(), 0));
             try {
-                runner.run(line);
+                host.runTurn(line);
             } catch (Exception e) {
-                port.onEvent(new OutputEvent(OutputEventType.ERROR, "本轮出错: " + e.getMessage(), sessionId, 0));
+                emitError("本轮出错: " + e.getMessage());
             }
         }
+    }
+
+    private void emitError(String message) {
+        port.onEvent(new OutputEvent(OutputEventType.ERROR, message, host.sessionId(), 0));
     }
 }

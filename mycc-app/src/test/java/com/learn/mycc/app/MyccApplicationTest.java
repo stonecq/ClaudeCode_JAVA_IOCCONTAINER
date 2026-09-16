@@ -51,9 +51,8 @@ class MyccApplicationTest {
     }
 
     @Test
-    void enterReplContainerPathWiresPrototypes() {
-        // 生产 enterRepl 走容器装配原型：args 覆盖绑定会话 / 全参覆盖 ReplLoop——把这条
-        // 真实 wiring 纳入回归，堵住「单测只碰测试缝、生产装配无覆盖」的盲区
+    void containerAssemblesAgentLoopBoundToSession() {
+        // 生产路径：AgentLoop 走容器 prototype 装配、args 覆盖绑定会话——纳入回归
         MyccApplication application = new MyccApplication();
         application.start();
         IocContainer container = application.getIocContainer();
@@ -61,18 +60,6 @@ class MyccApplicationTest {
             Session session = Session.create();
             AgentLoop agent = container.getBean(AgentLoop.class, session);
             assertThat(agent.session()).isSameAs(session);
-
-            // ReplLoop 全参覆盖：用自己的端口/输入驱动一行，验证 runner 与输出均被捕获
-            StringWriter buffer = new StringWriter();
-            CliPort port = new CliPort(new PrintWriter(buffer), false, true);
-            List<String> seen = new ArrayList<>();
-            ReplLoop.AgentRunner runner = seen::add;
-            Iterator<String> feed = List.of("probe").iterator();
-            ReplLoop.LineInput input = () -> feed.hasNext() ? feed.next() : null;
-            ReplLoop repl = container.getBean(ReplLoop.class, port, runner, input, "sid-1");
-            repl.run();
-            assertThat(seen).containsExactly("probe");
-            assertThat(buffer.toString()).contains("我 > probe");
         } finally {
             container.close();
         }

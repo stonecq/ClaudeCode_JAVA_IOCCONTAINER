@@ -1,6 +1,9 @@
 package com.learn.mycc.cli;
 
 import com.learn.mycc.ui.AgentApi;
+import com.learn.mycc.ui.MessageView;
+import com.learn.mycc.ui.OutputEvent;
+import com.learn.mycc.ui.OutputEventType;
 import com.learn.mycc.ui.SessionView;
 import com.learn.mycc.ui.ToolView;
 import com.learn.mycc.ui.UiConfig;
@@ -77,8 +80,28 @@ public final class CliSessionHost implements ReplLoop.Host {
             return;
         }
         currentId = target;
-        agent.replay(target);
+        renderHistory(target);
         println("已切换到会话 " + target);
+    }
+
+    /** 把某会话历史渲染到终端：复用 CliPort 的事件渲染，保持与实时对话一致。 */
+    private void renderHistory(String id) {
+        for (MessageView message : agent.history(id)) {
+            switch (message.role()) {
+                case "USER" -> port.onEvent(new OutputEvent(OutputEventType.USER, message.text(), id, 0));
+                case "ASSISTANT" -> {
+                    if (message.text() != null && !message.text().isBlank()) {
+                        port.onEvent(new OutputEvent(OutputEventType.TOKEN, message.text(), id, 0));
+                        port.onEvent(new OutputEvent(OutputEventType.DONE, null, id, 0));
+                    }
+                }
+                case "TOOL_CALL" -> port.onEvent(new OutputEvent(OutputEventType.TOOL_CALL, message.text(), id, 0));
+                case "TOOL" -> port.onEvent(new OutputEvent(OutputEventType.TOOL_RESULT, message.text(), id, 0));
+                default -> {
+                    // SYSTEM 等不渲染
+                }
+            }
+        }
     }
 
     private void listTools() {

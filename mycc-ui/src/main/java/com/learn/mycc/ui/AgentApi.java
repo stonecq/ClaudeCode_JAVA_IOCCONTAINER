@@ -21,11 +21,8 @@ public interface AgentApi {
     /** 删除会话。 */
     void deleteSession(String id);
 
-    /** 某会话的历史消息视图（不存在返回空列表）。 */
+    /** 某会话的历史消息视图（不存在返回空列表）；渲染方式由各 UI 自定。 */
     List<MessageView> history(String id);
-
-    /** 把某会话历史回放为输出事件（推到 UI 的输出端口）；不存在则忽略。 */
-    void replay(String id);
 
     /** 驱动一轮对话：消息交给 agent，输出经 UI 的输出端口下发。 */
     void chat(String sessionId, String userMessage);

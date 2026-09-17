@@ -59,8 +59,7 @@ class CliSessionHostTest {
         host.handleSlashCommand("/resume s1");
 
         assertThat(host.sessionId()).isEqualTo("s1");
-        assertThat(api.replayed).containsExactly("s1");
-        assertThat(buffer.toString()).contains("已切换到会话 s1");
+        assertThat(buffer.toString()).contains("我 > 历史问题").contains("已切换到会话 s1");
     }
 
     @Test
@@ -113,7 +112,6 @@ class CliSessionHostTest {
     static final class FakeAgentApi implements AgentApi {
         final Map<String, List<MessageView>> sessions = new LinkedHashMap<>();
         final List<String> chats = new ArrayList<>();
-        final List<String> replayed = new ArrayList<>();
 
         @Override
         public List<SessionView> listSessions() {
@@ -137,11 +135,6 @@ class CliSessionHostTest {
         @Override
         public List<MessageView> history(String id) {
             return sessions.getOrDefault(id, List.of());
-        }
-
-        @Override
-        public void replay(String id) {
-            replayed.add(id);
         }
 
         @Override

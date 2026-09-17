@@ -53,6 +53,7 @@ class AgentEndToEndTest {
         assertThat(result).isEqualTo("已写入并读回：hello agent");
         assertThat(Files.readString(workspace.resolve("notes.txt"))).isEqualTo("hello agent");
         assertThat(port.types()).containsExactly(
+                OutputEventType.USER,
                 OutputEventType.TOOL_CALL,
                 OutputEventType.TOOL_RESULT,
                 OutputEventType.TOOL_CALL,

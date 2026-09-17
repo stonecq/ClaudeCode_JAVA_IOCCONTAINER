@@ -61,12 +61,11 @@ class ReplLoopTest {
     }
 
     @Test
-    void sendsUserEventBeforeRunningAgent() {
+    void drivesHostForEachUserLine() {
         FakeHost host = new FakeHost();
         new ReplLoop(port(false, true), host, input("第一句\n/exit\n")).run();
 
         assertThat(host.turns).containsExactly("第一句");
-        assertThat(buffer.toString()).isEqualTo("我 > 第一句" + nl);
     }
 
     @Test
@@ -77,10 +76,7 @@ class ReplLoopTest {
         new ReplLoop(port(false, true), host, input("坏句\n好句\n/exit\n")).run();
 
         assertThat(host.turns).containsExactly("坏句", "好句");
-        assertThat(buffer.toString())
-                .contains("本轮出错: boom")
-                .contains("我 > 坏句")
-                .contains("我 > 好句");
+        assertThat(buffer.toString()).contains("本轮出错: boom");
     }
 
     @Test

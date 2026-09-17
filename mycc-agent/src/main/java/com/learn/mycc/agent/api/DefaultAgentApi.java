@@ -1,9 +1,11 @@
 package com.learn.mycc.agent.api;
 
 import com.learn.mycc.agent.loop.AgentLoop;
-import com.learn.mycc.agent.loop.SessionReplayer;
+import com.learn.mycc.agent.session.Message;
 import com.learn.mycc.agent.session.Session;
 import com.learn.mycc.agent.storage.SessionStore;
+import com.learn.mycc.ai.model.ChatMessage;
+import com.learn.mycc.ai.model.ToolCall;
 import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Inject;
 import com.learn.mycc.core.context.IocContainer;
@@ -14,6 +16,8 @@ import com.learn.mycc.ui.MessageView;
 import com.learn.mycc.ui.SessionView;
 import com.learn.mycc.ui.ToolView;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,16 +68,45 @@ public class DefaultAgentApi implements AgentApi {
     @Override
     public List<MessageView> history(String id) {
         return sessions.load(id)
-                .map(session -> session.conversation().messages().stream()
-                        .map(message -> new MessageView(message.role().name(), message.content()))
-                        .toList())
+                .map(session -> toViews(session.conversation().messages()))
                 .orElse(List.of());
     }
 
-    @Override
-    public void replay(String id) {
-        sessions.load(id).ifPresent(session -> SessionReplayer.replay(session, port));
+    /**
+     * 把会话消息转成 UI 视图：工具调用与其结果**配对**输出（TOOL_CALL 紧随其 TOOL 结果），
+     * 因此原始 TOOL 消息不再单列（已随调用消费）。
+     */
+    private static List<MessageView> toViews(List<Message> messages) {
+        Map<String, String> resultByCallId = new HashMap<>();
+        for (Message message : messages) {
+            if (message.role() == ChatMessage.Role.TOOL && message.toolCallId() != null) {
+                resultByCallId.put(message.toolCallId(), message.content());
+            }
+        }
+        List<MessageView> views = new ArrayList<>();
+        for (Message message : messages) {
+            switch (message.role()) {
+                case ASSISTANT -> {
+                    if (message.content() != null && !message.content().isBlank()) {
+                        views.add(new MessageView("ASSISTANT", message.content()));
+                    }
+                    for (ToolCall call : message.toolCalls()) {
+                        views.add(new MessageView("TOOL_CALL", call.name() + "(" + call.arguments() + ")"));
+                        String result = resultByCallId.get(call.id());
+                        if (result != null) {
+                            views.add(new MessageView("TOOL", result));
+                        }
+                    }
+                }
+                case TOOL -> {
+                    // 结果已随其调用配对输出，跳过原 TOOL 消息
+                }
+                default -> views.add(new MessageView(message.role().name(), message.content()));
+            }
+        }
+        return views;
     }
+
 
     @Override
     public void chat(String sessionId, String userMessage) {

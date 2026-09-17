@@ -44,11 +44,12 @@ class AgentLoopTest {
 
         assertThat(result).isEqualTo("done");
         assertThat(port.types()).containsExactly(
+                OutputEventType.USER,
                 OutputEventType.TOOL_CALL,
                 OutputEventType.TOOL_RESULT,
                 OutputEventType.TOKEN,
                 OutputEventType.DONE);
-        assertThat(port.events).extracting(OutputEvent::seq).containsExactly(0L, 1L, 2L, 3L);
+        assertThat(port.events).extracting(OutputEvent::seq).containsExactly(0L, 1L, 2L, 3L, 4L);
         assertThat(port.events).allSatisfy(event -> assertThat(event.sessionId()).isEqualTo(agent.session().id()));
     }
 
@@ -102,11 +103,12 @@ class AgentLoopTest {
 
         assertThat(result).isEqualTo("最终答案");
         assertThat(port.types()).containsExactly(
+                OutputEventType.USER,
                 OutputEventType.THINKING,
                 OutputEventType.TOKEN,
                 OutputEventType.DONE);
         assertThat(port.events).extracting(OutputEvent::payload)
-                .containsExactly("我在推理", "最终答案", "最终答案");
+                .containsExactly("hi", "我在推理", "最终答案", "最终答案");
     }
 
     @Test
@@ -120,7 +122,7 @@ class AgentLoopTest {
         String result = agent.run("hi");
 
         assertThat(result).contains("provider-down");
-        assertThat(port.types()).containsExactly(OutputEventType.ERROR);
+        assertThat(port.types()).containsExactly(OutputEventType.USER, OutputEventType.ERROR);
     }
 
     public static final class Tools {

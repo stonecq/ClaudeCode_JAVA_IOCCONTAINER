@@ -192,6 +192,8 @@ public final class AgentLoop {
             }
         }
         session.addMessage(Message.user(userMessage));
+        // 回合开始即下发 USER 事件（供所有 UI 回显用户输入，与实时输出同一通道）
+        emit(OutputEventType.USER, userMessage);
         dispatchHook(HookEventType.USER_PROMPT_SUBMIT, userMessage);
         String finalResult = null;
         try {

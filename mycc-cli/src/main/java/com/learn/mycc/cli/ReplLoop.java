@@ -82,7 +82,7 @@ public final class ReplLoop {
                 host.handleSlashCommand(line);
                 continue;
             }
-            port.onEvent(new OutputEvent(OutputEventType.USER, line, host.sessionId(), 0));
+            // USER 事件由 agent 在回合开始下发（见 AgentLoop.run），此处不再重复
             try {
                 host.runTurn(line);
             } catch (Exception e) {

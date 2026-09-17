@@ -2,71 +2,271 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>mycc</title>
 <style>
+  :root {
+    --bg: #f0eee6; --bg-2: #ebe8de;
+    --panel: #faf9f5; --surface: #ffffff;
+    --border: #e5e1d5; --border-soft: #eeece3;
+    --text: #1f1e1d; --muted: #6f6e69;
+    --accent: #d97757; --accent-deep: #c05e39; --accent-soft: #f3e7e0;
+    --tool-bg: #f6f4ed; --think-bg: #f8f6f0;
+    --user-bubble: #e9e6dc;
+    --avatar-col: 38px; --avatar-gap: 12px;
+    --radius: 18px;
+  }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; display: flex; height: 100vh; }
-  #sidebar { width: 240px; border-right: 1px solid #ddd; display: flex; flex-direction: column; background: #fafafa; }
-  #new { margin: 10px; padding: 8px; cursor: pointer; }
-  #list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
-  #list li { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #eee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #list li.active { background: #e6f0ff; }
-  #list li .del { float: right; color: #c00; visibility: hidden; }
-  #list li:hover .del { visibility: visible; }
-  main { flex: 1; display: flex; flex-direction: column; }
-  #messages { flex: 1; overflow-y: auto; padding: 16px; }
-  .msg { margin: 6px 0; white-space: pre-wrap; word-break: break-word; }
-  .user { color: #0a6; }
-  .thinking { color: #999; font-style: italic; }
-  .tool { color: #a80; font-family: monospace; }
-  .result { color: #2a2; font-family: monospace; }
-  .error { color: #c00; }
-  #composer { display: flex; border-top: 1px solid #ddd; padding: 10px; }
-  #input { flex: 1; padding: 8px; font: inherit; }
-  #send { padding: 8px 16px; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font: 15px/1.7 ui-sans-serif, -apple-system, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    color: var(--text); background: linear-gradient(180deg, var(--bg), var(--bg-2));
+    display: flex; overflow: hidden; -webkit-font-smoothing: antialiased;
+  }
+  .brand, header, .empty-title { font-family: Georgia, "Times New Roman", "Songti SC", "SimSun", serif; }
+  ::selection { background: var(--accent-soft); }
+
+  /* ---------- 侧栏 ---------- */
+  aside {
+    width: 264px; flex: 0 0 264px; background: var(--panel);
+    border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  }
+  aside .brand {
+    padding: 20px 20px 14px; font-size: 21px; letter-spacing: .4px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  aside .brand::before {
+    content: ""; width: 11px; height: 11px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft);
+  }
+  .new-btn {
+    margin: 0 14px 14px; padding: 11px 14px; border: 1px solid var(--border);
+    border-radius: 12px; background: var(--surface); color: var(--text);
+    cursor: pointer; font: inherit; text-align: left; transition: .15s;
+  }
+  .new-btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-deep); transform: translateY(-1px); }
+  .side-hint { padding: 8px 14px 4px; font-size: 12px; color: var(--muted); letter-spacing: .4px; }
+  .sessions { list-style: none; margin: 0; padding: 0 10px 12px; overflow-y: auto; flex: 1; }
+  .sessions li {
+    padding: 10px 12px; border-radius: 12px; cursor: pointer;
+    display: flex; flex-direction: column; gap: 3px; position: relative; transition: .12s;
+    border: 1px solid transparent;
+  }
+  .sessions li:hover { background: var(--surface); border-color: var(--border-soft); }
+  .sessions li.active { background: var(--accent-soft); border-color: #e7d3c9; }
+  .sessions li .t { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sessions li .d { font-size: 12px; color: var(--muted); }
+  .sessions li .del { position: absolute; right: 10px; top: 10px; color: var(--muted); visibility: hidden; padding: 0 4px; }
+  .sessions li:hover .del { visibility: visible; }
+  .sessions li .del:hover { color: var(--accent-deep); }
+
+  /* ---------- 主区 ---------- */
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  header {
+    padding: 17px 30px; border-bottom: 1px solid var(--border);
+    background: rgba(250,249,245,.85); backdrop-filter: blur(6px);
+    font-size: 17px; font-weight: 600; display: flex; align-items: center; gap: 10px; flex: 0 0 auto;
+  }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+
+  .chat { flex: 1; overflow-y: auto; padding: 26px 30px 16px; scroll-behavior: smooth; }
+  .chat::-webkit-scrollbar { width: 10px; }
+  .chat::-webkit-scrollbar-thumb { background: #dcd8cb; border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
+  .chat::-webkit-scrollbar-thumb:hover { background: #cdc8b8; background-clip: content-box; border: 3px solid transparent; }
+
+  .empty { color: var(--muted); text-align: center; margin-top: 16vh; }
+  .empty .empty-title { font-size: 24px; color: var(--text); margin-bottom: 6px; }
+
+  /* ---------- 消息行（满宽：用户贴右、agent 贴左） ---------- */
+  .row { display: flex; gap: var(--avatar-gap); margin: 18px 0; align-items: flex-start; animation: in .18s ease-out; }
+  @keyframes in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .row.user { justify-content: flex-end; }
+  .row.agent { justify-content: flex-start; }
+
+  .avatar {
+    flex: 0 0 var(--avatar-col); width: var(--avatar-col); height: var(--avatar-col);
+    border-radius: 11px; display: grid; place-items: center; font-size: 16px; font-weight: 700;
+    background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgba(217,119,87,.35);
+  }
+  .bubble {
+    max-width: min(76%, 1000px); padding: 12px 16px; border-radius: var(--radius);
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .row.user .bubble { background: var(--user-bubble); border-bottom-right-radius: 6px; }
+  .row.agent .bubble {
+    background: var(--surface); border: 1px solid var(--border);
+    border-bottom-left-radius: 6px; box-shadow: 0 1px 2px rgba(31,30,29,.05);
+  }
+  .row.error .bubble { background: #fbeeea; border: 1px solid #eccabe; color: var(--accent-deep); }
+
+  /* ---------- 折叠块（与 agent 气泡文字左对齐） ---------- */
+  details.block {
+    margin: 12px 0 12px calc(var(--avatar-col) + var(--avatar-gap));
+    max-width: min(76%, 1000px);
+    border: 1px solid var(--border); border-radius: 14px; background: var(--tool-bg); overflow: hidden;
+    animation: in .18s ease-out;
+  }
+  details.block > summary { list-style: none; cursor: pointer; padding: 11px 16px; display: flex; align-items: center; gap: 10px; font-size: 14px; user-select: none; }
+  details.block > summary::-webkit-details-marker { display: none; }
+  details.block > summary .chev { color: var(--muted); font-size: 10px; transition: transform .15s; }
+  details.block[open] > summary .chev { transform: rotate(90deg); }
+  details.block > summary .name { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-weight: 600; color: var(--accent-deep); }
+  details.block .body { padding: 0 16px 15px; }
+  details.thinking { background: var(--think-bg); border-style: dashed; }
+  details.thinking > summary { color: var(--muted); font-style: italic; }
+  details.thinking .body { color: #5f5d56; font-size: 14px; white-space: pre-wrap; }
+  .kv { margin: 9px 0; }
+  .kv .k { font-size: 11px; color: var(--muted); margin-bottom: 4px; letter-spacing: .6px; text-transform: uppercase; }
+  pre { margin: 0; padding: 11px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); font: 13px/1.55 ui-monospace, "SF Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-word; color: #33332f; }
+  pre.result { background: #fcfbf7; }
+
+  /* ---------- 输入区 ---------- */
+  .composer { border-top: 1px solid var(--border); background: rgba(250,249,245,.85); backdrop-filter: blur(6px); padding: 16px 30px; flex: 0 0 auto; }
+  .composer form { display: flex; gap: 12px; max-width: min(100%, 1080px); margin: 0 auto; }
+  .composer input {
+    flex: 1; padding: 14px 18px; font: inherit; border: 1px solid var(--border);
+    border-radius: 16px; outline: none; background: var(--surface); color: var(--text); transition: .15s;
+    box-shadow: 0 1px 2px rgba(31,30,29,.04);
+  }
+  .composer input::placeholder { color: var(--muted); }
+  .composer input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .composer button {
+    padding: 0 24px; border: none; border-radius: 16px; background: var(--accent); color: #fff;
+    font: inherit; font-weight: 600; cursor: pointer; transition: .15s; box-shadow: 0 1px 3px rgba(217,119,87,.3);
+  }
+  .composer button:hover { background: var(--accent-deep); transform: translateY(-1px); }
 </style>
 </head>
 <body>
-<aside id="sidebar">
-  <button id="new">＋ 新建会话</button>
-  <ul id="list"></ul>
+
+<aside>
+  <div class="brand">mycc</div>
+  <button class="new-btn" id="new">＋ 新建会话</button>
+  <div class="side-hint">会话</div>
+  <ul class="sessions" id="list"></ul>
 </aside>
+
 <main>
-  <div id="messages"></div>
-  <form id="composer">
-    <input id="input" placeholder="输入消息…" autocomplete="off" />
-    <button id="send" type="submit">发送</button>
-  </form>
+  <header><span class="dot"></span><span id="title">mycc</span></header>
+  <div class="chat" id="chat"></div>
+  <div class="composer">
+    <form id="composer">
+      <input id="input" placeholder="给 mycc 发消息…" autocomplete="off">
+      <button>发送</button>
+    </form>
+  </div>
 </main>
+
 <script>
 let currentId = null;
 let es = null;
-let currentTurn = null;   // 当前 assistant 气泡
+let currentAgent = null;      // 当前 agent 正文气泡（TOKEN 追加目标）
+let currentThinking = null;   // 当前思考块 body
+let lastTool = null;          // 最近一个工具折叠框（结果追加目标）
 
 const listEl = document.getElementById('list');
-const messagesEl = document.getElementById('messages');
+const chatEl = document.getElementById('chat');
+const titleEl = document.getElementById('title');
 const inputEl = document.getElementById('input');
 
+/* ---------- DOM 构件 ---------- */
+function el(tag, cls, text) {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text != null) node.textContent = text;
+  return node;
+}
+function scroll() { chatEl.scrollTop = chatEl.scrollHeight; }
+function clearEmpty() { const e = chatEl.querySelector('.empty'); if (e) e.remove(); }
+
+function userBubble(text) {
+  clearEmpty();
+  const row = el('div', 'row user');
+  row.appendChild(el('div', 'bubble', text));
+  chatEl.appendChild(row); scroll();
+}
+function agentBubble(text) {
+  clearEmpty();
+  const row = el('div', 'row agent');
+  row.appendChild(el('div', 'avatar', '✳'));
+  const bubble = el('div', 'bubble', text || '');
+  row.appendChild(bubble);
+  chatEl.appendChild(row); scroll();
+  return bubble;
+}
+function errorBubble(text) {
+  clearEmpty();
+  const row = el('div', 'row error');
+  row.appendChild(el('div', 'bubble', text));
+  chatEl.appendChild(row); scroll();
+}
+function collapsible(cls, summaryLabel) {
+  const details = el('details', 'block ' + cls);
+  const summary = el('summary');
+  summary.appendChild(el('span', 'chev', '▶'));
+  summary.appendChild(el('span', 'name', summaryLabel));
+  details.appendChild(summary);
+  const body = el('div', 'body');
+  details.appendChild(body);
+  chatEl.appendChild(details); scroll();
+  return body;
+}
+function toolBlock(name, argsText) {
+  const body = collapsible('tool', name);
+  if (argsText) {
+    const kv = el('div', 'kv');
+    kv.appendChild(el('div', 'k', '参数'));
+    kv.appendChild(el('pre', null, argsText));
+    body.appendChild(kv);
+  }
+  const hr = el('div', 'kv');
+  hr.appendChild(el('div', 'k', '结果'));
+  const result = el('pre', 'result', '');
+  hr.appendChild(result);
+  body.appendChild(hr);
+  return { result };
+}
+function thinkingBlock() {
+  return collapsible('thinking', '💭 思考过程');   // 文本追加到 body
+}
+function showEmpty(title, sub) {
+  const box = el('div', 'empty');
+  box.appendChild(el('div', 'empty-title', title));
+  box.appendChild(el('div', null, sub));
+  chatEl.appendChild(box);
+}
+
+/** 从 "name(args)" 拆出工具名与参数文本（用于工具折叠框标题）。 */
+function splitToolCall(text) {
+  const i = text.indexOf('(');
+  if (i < 0) return { name: text.trim(), args: '' };
+  return { name: text.slice(0, i).trim(), args: text.slice(i + 1, text.lastIndexOf(')')) };
+}
+
+/* ---------- 会话列表 ---------- */
 async function loadSessions() {
   const sessions = await (await fetch('/v1/sessions')).json();
   listEl.innerHTML = '';
+  if (sessions.length === 0) {
+    listEl.appendChild(el('li', 'd', '（暂无会话）'));
+    return;
+  }
   for (const s of sessions) {
     const li = document.createElement('li');
-    li.textContent = (s.title || s.id) + '  ';
-    li.dataset.id = s.id;
-    if (s.id === currentId) li.classList.add('active');
-    li.onclick = () => select(s.id);
-    const del = document.createElement('span');
-    del.className = 'del';
-    del.textContent = '✕';
+    li.className = s.id === currentId ? 'active' : '';
+    li.appendChild(el('span', 't', s.title || '（空对话）'));
+    li.appendChild(el('span', 'd', new Date(s.lastModified).toLocaleString()));
+    const del = el('span', 'del', '✕');
     del.title = '删除';
     del.onclick = async (e) => {
       e.stopPropagation();
       await fetch('/v1/sessions/' + s.id, { method: 'DELETE' });
-      if (s.id === currentId) { currentId = null; messagesEl.innerHTML = ''; if (es) es.close(); }
+      if (s.id === currentId) { currentId = null; chatEl.innerHTML = ''; titleEl.textContent = 'mycc'; if (es) { es.close(); es = null; } }
       loadSessions();
     };
     li.appendChild(del);
+    li.onclick = () => select(s.id, s.title);
     listEl.appendChild(li);
   }
 }
@@ -74,65 +274,93 @@ async function loadSessions() {
 async function newSession() {
   const { id } = await (await fetch('/v1/sessions', { method: 'POST' })).json();
   await loadSessions();
-  select(id);
+  select(id, '（空对话）');
 }
 
-function line(cls, text) {
-  const div = document.createElement('div');
-  div.className = 'msg ' + cls;
-  div.textContent = text;
-  messagesEl.appendChild(div);
-  messagesEl.scrollTop = messagesEl.scrollHeight;
-  return div;
-}
-
-async function select(id) {
+/* ---------- 选择会话：拉历史 + 订阅事件 ---------- */
+async function select(id, title) {
   currentId = id;
-  currentTurn = null;
-  if (es) es.close();
-  messagesEl.innerHTML = '';
-  // 历史消息
+  titleEl.textContent = title || id;
+  resetTurnState();
+  if (es) { es.close(); es = null; }
+  chatEl.innerHTML = '';
   const history = await (await fetch('/v1/sessions/' + id)).json();
-  for (const m of history) {
-    if (m.role === 'USER') line('user', '我 > ' + m.text);
-    else if (m.role === 'ASSISTANT' && m.text) line('', m.text);
-    else if (m.role === 'TOOL') line('result', '[结果] ' + m.text);
-  }
-  // 实时事件
+  renderHistory(history);
+  if (history.length === 0) showEmpty('开始对话', '输入消息，mycc 会调用工具、逐步完成你的任务。');
   es = new EventSource('/v1/sessions/' + id + '/events');
   es.onmessage = (e) => handleEvent(JSON.parse(e.data));
   loadSessions();
 }
 
+function resetTurnState() { currentAgent = null; currentThinking = null; lastTool = null; }
+
+/** 历史：USER/ASSISTANT 气泡；TOOL_CALL 与紧随的 TOOL 配成一个折叠框。 */
+function renderHistory(views) {
+  for (let i = 0; i < views.length; i++) {
+    const m = views[i];
+    if (m.role === 'USER') {
+      userBubble(m.text);
+    } else if (m.role === 'ASSISTANT') {
+      agentBubble(m.text);
+    } else if (m.role === 'TOOL_CALL') {
+      const { name, args } = splitToolCall(m.text);
+      const block = toolBlock(name, args);
+      if (views[i + 1] && views[i + 1].role === 'TOOL') {
+        block.result.textContent = views[i + 1].text;
+        i++;
+      }
+    }
+  }
+}
+
+/* ---------- 实时事件 ---------- */
 function handleEvent(ev) {
   const payload = ev.payload == null ? '' : ev.payload;
   switch (ev.type) {
-    case 'USER': currentTurn = null; line('user', '我 > ' + payload); break;
+    case 'USER':
+      resetTurnState();
+      userBubble(payload);
+      break;
     case 'THINKING':
-      if (!currentTurn) currentTurn = line('thinking', '');
-      currentTurn.className = 'msg thinking';
-      currentTurn.textContent += payload;
+      if (!currentThinking) currentThinking = thinkingBlock();
+      currentThinking.textContent += payload;
+      scroll();
       break;
     case 'TOKEN':
-      if (!currentTurn) currentTurn = line('', '');
-      currentTurn.className = 'msg';
-      currentTurn.textContent += payload;
+      currentThinking = null;                 // 思考结束
+      if (!currentAgent) currentAgent = agentBubble('');
+      currentAgent.textContent += payload;
+      scroll();
       break;
-    case 'TOOL_CALL': currentTurn = null; line('tool', '[工具] ' + payload); break;
-    case 'TOOL_RESULT': currentTurn = null; line('result', '[结果] ' + payload); break;
-    case 'ERROR': line('error', '[错误] ' + payload); break;
-    case 'DONE': currentTurn = null; break;
+    case 'TOOL_CALL': {
+      currentAgent = null; currentThinking = null;
+      const { name, args } = splitToolCall(payload);
+      lastTool = toolBlock(name, args);
+      break;
+    }
+    case 'TOOL_RESULT': {
+      const text = payload.includes(' => ') ? payload.slice(payload.indexOf(' => ') + 4) : payload;
+      if (lastTool) { lastTool.result.textContent = text; scroll(); }
+      else { toolBlock('结果', '').result.textContent = text; }
+      break;
+    }
+    case 'ERROR':
+      errorBubble('[错误] ' + payload);
+      break;
+    case 'DONE':
+      resetTurnState();
+      break;
   }
-  messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+/* ---------- 发送 ---------- */
 document.getElementById('new').onclick = newSession;
 document.getElementById('composer').onsubmit = async (e) => {
   e.preventDefault();
   const text = inputEl.value.trim();
   if (!text || !currentId) return;
   inputEl.value = '';
-  currentTurn = null;
+  resetTurnState();
   await fetch('/v1/sessions/' + currentId + '/message', {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain' },
@@ -142,6 +370,8 @@ document.getElementById('composer').onsubmit = async (e) => {
 };
 
 loadSessions();
+chatEl.appendChild(el('div', 'empty')).appendChild(el('div', 'empty-title', 'mycc'));
+chatEl.querySelector('.empty').appendChild(el('div', null, '选择一个会话，或新建会话开始。'));
 </script>
 </body>
 </html>

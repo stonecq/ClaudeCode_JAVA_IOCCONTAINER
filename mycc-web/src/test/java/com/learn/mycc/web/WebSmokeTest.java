@@ -98,10 +98,6 @@ class WebSmokeTest {
         }
 
         @Override
-        public void replay(String id) {
-        }
-
-        @Override
         public void chat(String sessionId, String userMessage) {
         }
 

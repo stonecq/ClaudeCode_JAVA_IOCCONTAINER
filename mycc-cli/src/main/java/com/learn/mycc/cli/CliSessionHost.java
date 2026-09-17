@@ -1,27 +1,29 @@
 package com.learn.mycc.cli;
 
-import com.learn.mycc.storage.config.ConfigDefaults;
 import com.learn.mycc.ui.AgentApi;
 import com.learn.mycc.ui.SessionView;
 import com.learn.mycc.ui.ToolView;
+import com.learn.mycc.ui.UiConfig;
 
 import java.time.Instant;
 import java.util.List;
 
 /**
  * CLI 会话宿主：持有"当前会话 id"，经 {@link AgentApi}（agent 门面）驱动对话与斜杠命令。
- * <p>不接触 agent 内部 bean 与容器——一切经门面。命令：{@code /sessions}、{@code /resume [id]}
- * （无 id 续最近，即列表首个）、{@code /tools}、{@code /config}。</p>
+ * <p>不接触 agent 内部 bean/容器；{@code /config} 显示的是 UI 侧配置（{@link UiConfig}）。
+ * 命令：{@code /sessions}、{@code /resume [id]}（无 id 续最近）、{@code /tools}、{@code /config}。</p>
  */
 public final class CliSessionHost implements ReplLoop.Host {
 
     private final AgentApi agent;
     private final CliPort port;
+    private final UiConfig uiConfig;
     private String currentId;
 
-    public CliSessionHost(AgentApi agent, CliPort port, String initialSessionId) {
+    public CliSessionHost(AgentApi agent, CliPort port, UiConfig uiConfig, String initialSessionId) {
         this.agent = agent;
         this.port = port;
+        this.uiConfig = uiConfig;
         this.currentId = initialSessionId;
     }
 
@@ -86,7 +88,7 @@ public final class CliSessionHost implements ReplLoop.Host {
     }
 
     private void showConfig() {
-        println(ConfigDefaults.CLI_SHOW_REASONING + " = " + agent.config(ConfigDefaults.CLI_SHOW_REASONING));
+        println("ui.cli.showReasoning = " + uiConfig.cliShowReasoning());
     }
 
     private void println(String text) {

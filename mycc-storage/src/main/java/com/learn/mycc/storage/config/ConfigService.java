@@ -31,6 +31,8 @@ public final class ConfigService {
     private static final String PROPERTY_PREFIX = "mycc.";
     /** 环境变量前缀，形如 {@code MYCC_<KEY>}。 */
     private static final String ENV_PREFIX = "MYCC_";
+    /** UI 域 key 前缀；agent 侧不加载该域（归 {@code UiConfig} 读取）。 */
+    private static final String UI_PREFIX = "ui.";
 
     /** 配置文件路径（构造时确定）。 */
     private final Path configFile;
@@ -184,7 +186,8 @@ public final class ConfigService {
         if (node.isObject()) {
             node.fields().forEachRemaining(entry ->
                     flatten(prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey(), entry.getValue(), out));
-        } else {
+        } else if (!prefix.startsWith(UI_PREFIX)) {
+            // ui 域配置归 UiConfig 读取，agent 侧不加载
             out.put(prefix, node.asText());
         }
     }

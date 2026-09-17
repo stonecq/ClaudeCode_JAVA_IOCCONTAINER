@@ -18,19 +18,16 @@ public interface UiAdapter {
     String id();
 
     /**
-     * 该 UI 的输出端口（agent 经它下发 {@code OutputEvent}）。实现可惰性创建并缓存。
-     *
-     * @param agent agent 门面（如读配置）
+     * 该 UI 的输出端口（agent 经它下发 {@code OutputEvent}）。实现可惰性创建并缓存；
+     * 端口所需配置读 UI 自己的 {@link UiConfig}，不经 agent。
      */
-    InteractionPort port(AgentApi agent);
+    InteractionPort port();
 
     /**
      * 该 UI 的审批输入端口（agent 权限系统经它征求用户决定）。
      * 无交互审批能力的 UI 可返回 fail-closed 实现（{@code UnavailableUserConfirmation}）。
-     *
-     * @param agent agent 门面
      */
-    UserConfirmation userConfirmation(AgentApi agent);
+    UserConfirmation userConfirmation();
 
     /**
      * 拉起该 UI：用 {@link AgentApi} 驱动对话、启动界面并阻塞至退出。

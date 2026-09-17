@@ -3,10 +3,10 @@ package com.learn.mycc.cli;
 import com.learn.mycc.cli.repl.CliPermissionPrompt;
 import com.learn.mycc.core.exception.MyccException;
 import com.learn.mycc.core.permission.UserConfirmation;
-import com.learn.mycc.storage.config.ConfigDefaults;
 import com.learn.mycc.ui.AgentApi;
 import com.learn.mycc.ui.InteractionPort;
 import com.learn.mycc.ui.UiAdapter;
+import com.learn.mycc.ui.UiConfig;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.terminal.Terminal;
@@ -18,14 +18,15 @@ import java.io.PrintWriter;
 
 /**
  * CLI UI 适配器：启动即进入 REPL 对话界面（{@code --ui cli}）。
- * <p>自建 CLI 传输物（JLine 终端 / 读入 / {@link CliPort} / 审批提示），只经 {@link AgentApi}
- * 与 agent 交互；原 {@code resume/sessions/tools/config} 子命令已改为 REPL 内斜杠命令。</p>
+ * <p>自建 CLI 传输物（JLine 终端 / 读入 / {@link CliPort} / 审批提示）；只经 {@link AgentApi}
+ * 与 agent 交互，端口配置读 UI 自己的 {@link UiConfig}。</p>
  */
 public final class CliAdapter implements UiAdapter {
 
     private CliPort port;
     private CliPermissionPrompt confirm;
     private ReplLoop.LineInput input;
+    private UiConfig uiConfig;
 
     @Override
     public String id() {
@@ -33,20 +34,20 @@ public final class CliAdapter implements UiAdapter {
     }
 
     @Override
-    public InteractionPort port(AgentApi agent) {
-        ensureTerminalIo(agent);
+    public InteractionPort port() {
+        ensureTerminalIo();
         return port;
     }
 
     @Override
-    public UserConfirmation userConfirmation(AgentApi agent) {
-        ensureTerminalIo(agent);
+    public UserConfirmation userConfirmation() {
+        ensureTerminalIo();
         return confirm;
     }
 
     @Override
     public void start(AgentApi agent, String[] args) {
-        ensureTerminalIo(agent);
+        ensureTerminalIo();
         if (missingKey()) {
             PrintWriter out = port.writer();
             out.println("未设置环境变量 OPENCODE_KEY，无法接入 openCode。");
@@ -56,13 +57,13 @@ public final class CliAdapter implements UiAdapter {
         }
         // 默认新建会话进 REPL；切换会话用 /sessions 查看、/resume <id> 进入
         String sessionId = agent.createSession();
-        CliSessionHost host = new CliSessionHost(agent, port, sessionId);
+        CliSessionHost host = new CliSessionHost(agent, port, uiConfig(), sessionId);
         new ReplLoop(port, host, input).run();
         port.writer().flush();
     }
 
     /** 惰性构建 CLI 传输物（终端 / 读入 / 渲染端口 / 审批提示）并缓存复用。 */
-    private void ensureTerminalIo(AgentApi agent) {
+    private void ensureTerminalIo() {
         if (port != null) {
             return;
         }
@@ -71,9 +72,15 @@ public final class CliAdapter implements UiAdapter {
         LineReader reader = LineReaderBuilder.builder().terminal(terminal).build();
         input = ReplLoop.fromLineReader(reader);
         boolean ansi = CliPort.supportsAnsi(terminal);
-        boolean showReasoning = "true".equalsIgnoreCase(agent.config(ConfigDefaults.CLI_SHOW_REASONING));
-        port = new CliPort(out, ansi, showReasoning);
+        port = new CliPort(out, ansi, uiConfig().cliShowReasoning());
         confirm = new CliPermissionPrompt(input, out);
+    }
+
+    private UiConfig uiConfig() {
+        if (uiConfig == null) {
+            uiConfig = new UiConfig();
+        }
+        return uiConfig;
     }
 
     /** 无控制台（管道/重定向/CI）直接建 {@link DumbTerminal}，避免 JLine 探测原生终端拖慢启动。 */

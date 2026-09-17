@@ -39,7 +39,15 @@ class ConfigServiceTest {
         ConfigService config = new ConfigService(configFile());
         assertThat(config.get(ConfigDefaults.AGENT_MODEL)).contains("deepseek-v4-flash");
         assertThat(config.getInt(ConfigDefaults.AGENT_MAX_ITERATIONS)).isEqualTo(10);
-        assertThat(config.getBool(ConfigDefaults.CLI_SHOW_REASONING)).isTrue();
+    }
+
+    @Test
+    void doesNotLoadUiDomainKeys() throws IOException {
+        // ui 域配置归 UiConfig；agent 侧 ConfigService 不加载
+        Files.writeString(configFile(), "{\"ui\":{\"cli\":{\"showReasoning\":false}}}", StandardCharsets.UTF_8);
+        ConfigService config = new ConfigService(configFile());
+        // agent 侧未加载 ui 域：返回内置默认 true，而非文件里的 false
+        assertThat(config.get(ConfigDefaults.UI_CLI_SHOW_REASONING)).contains("true");
     }
 
     @Test

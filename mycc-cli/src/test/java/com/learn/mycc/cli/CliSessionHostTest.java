@@ -4,11 +4,14 @@ import com.learn.mycc.ui.AgentApi;
 import com.learn.mycc.ui.MessageView;
 import com.learn.mycc.ui.SessionView;
 import com.learn.mycc.ui.ToolView;
+import com.learn.mycc.ui.UiConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +20,9 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CliSessionHostTest {
+
+    @TempDir
+    Path tempDir;
 
     StringWriter buffer;
     CliPort port;
@@ -28,7 +34,7 @@ class CliSessionHostTest {
         buffer = new StringWriter();
         port = new CliPort(new PrintWriter(buffer), false, true);
         api = new FakeAgentApi();
-        host = new CliSessionHost(api, port, "s0");
+        host = new CliSessionHost(api, port, new UiConfig(tempDir.resolve("config.json")), "s0");
     }
 
     @Test
@@ -86,9 +92,9 @@ class CliSessionHostTest {
     }
 
     @Test
-    void configPrintsEffectiveValue() {
+    void configShowsUiConfigValue() {
         host.handleSlashCommand("/config");
-        assertThat(buffer.toString()).contains("cli.showReasoning = true");
+        assertThat(buffer.toString()).contains("ui.cli.showReasoning = true");
     }
 
     @Test
@@ -146,11 +152,6 @@ class CliSessionHostTest {
         @Override
         public List<ToolView> listTools() {
             return List.of(new ToolView("demo", "示例工具"));
-        }
-
-        @Override
-        public String config(String key) {
-            return "true";
         }
 
         private static String title(List<MessageView> history) {

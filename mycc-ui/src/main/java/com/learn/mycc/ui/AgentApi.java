@@ -32,7 +32,4 @@ public interface AgentApi {
 
     /** 当前注册的工具（名称 + 描述）。 */
     List<ToolView> listTools();
-
-    /** 读取某项配置的生效值；未配置返回空串。 */
-    String config(String key);
 }

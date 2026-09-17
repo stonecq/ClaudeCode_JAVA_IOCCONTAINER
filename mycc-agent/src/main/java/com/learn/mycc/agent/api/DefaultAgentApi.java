@@ -8,7 +8,6 @@ import com.learn.mycc.core.annotation.Component;
 import com.learn.mycc.core.annotation.Inject;
 import com.learn.mycc.core.context.IocContainer;
 import com.learn.mycc.core.tool.ToolRegistry;
-import com.learn.mycc.storage.config.ConfigService;
 import com.learn.mycc.ui.AgentApi;
 import com.learn.mycc.ui.InteractionPort;
 import com.learn.mycc.ui.MessageView;
@@ -29,17 +28,17 @@ public class DefaultAgentApi implements AgentApi {
 
     private final SessionStore sessions;
     private final ToolRegistry tools;
-    private final ConfigService config;
     private final IocContainer container;
+    private final InteractionPort port;
     /** 每会话缓存一个循环，避免每轮重建（切换/删除会话时清理）。 */
     private final Map<String, AgentLoop> loopsBySession = new ConcurrentHashMap<>();
 
     @Inject
-    public DefaultAgentApi(SessionStore sessions, ToolRegistry tools, ConfigService config, IocContainer container) {
+    public DefaultAgentApi(SessionStore sessions, ToolRegistry tools, IocContainer container, InteractionPort port) {
         this.sessions = sessions;
         this.tools = tools;
-        this.config = config;
         this.container = container;
+        this.port = port;
     }
 
     @Override
@@ -73,7 +72,6 @@ public class DefaultAgentApi implements AgentApi {
 
     @Override
     public void replay(String id) {
-        InteractionPort port = container.getBean(InteractionPort.class);
         sessions.load(id).ifPresent(session -> SessionReplayer.replay(session, port));
     }
 
@@ -81,7 +79,7 @@ public class DefaultAgentApi implements AgentApi {
     public void chat(String sessionId, String userMessage) {
         Session session = sessions.load(sessionId).orElseGet(() -> new Session(sessionId));
         AgentLoop loop = loopsBySession.computeIfAbsent(sessionId,
-                key -> container.getBean(AgentLoop.class, session));
+                key -> container.getBean(AgentLoop.class, port, session));
         loop.run(userMessage);
     }
 
@@ -90,10 +88,5 @@ public class DefaultAgentApi implements AgentApi {
         return tools.getAll().stream()
                 .map(tool -> new ToolView(tool.getName(), tool.getDescription()))
                 .toList();
-    }
-
-    @Override
-    public String config(String key) {
-        return config.get(key).orElse("");
     }
 }

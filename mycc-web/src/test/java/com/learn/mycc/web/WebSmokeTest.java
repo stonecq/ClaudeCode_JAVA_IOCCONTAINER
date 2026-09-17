@@ -109,10 +109,5 @@ class WebSmokeTest {
         public List<ToolView> listTools() {
             return new ArrayList<>();
         }
-
-        @Override
-        public String config(String key) {
-            return "";
-        }
     }
 }

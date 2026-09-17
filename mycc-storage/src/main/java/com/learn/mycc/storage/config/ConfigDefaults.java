@@ -19,14 +19,14 @@ public final class ConfigDefaults {
     /** 上下文超长时 reactive 压缩的最大重试次数。 */
     public static final String AGENT_MAX_REACTIVE_RETRIES = "agent.maxReactiveRetries";
 
-    /** CLI 是否渲染思考（reasoning）块。 */
-    public static final String CLI_SHOW_REASONING = "cli.showReasoning";
+    /** UI 域：CLI 是否渲染思考（reasoning）块。 */
+    public static final String UI_CLI_SHOW_REASONING = "ui.cli.showReasoning";
 
     /** 工作区根路径（工具/记忆/技能等的作用目录）；默认 {@code .} 即当前目录。 */
     public static final String WORKSPACE_PATH = "workpath";
 
-    /** Web 服务监听端口。 */
-    public static final String WEB_PORT = "web.port";
+    /** UI 域：Web 服务监听端口。 */
+    public static final String UI_WEB_PORT = "ui.web.port";
 
     /** 记忆每层条数上限，超限触发清理子代理。 */
     public static final String MEMORY_MAX_ENTRIES_PER_LAYER = "memory.maxEntriesPerLayer";
@@ -61,9 +61,9 @@ public final class ConfigDefaults {
         DEFAULTS.put(AGENT_MODEL, "deepseek-v4-flash");
         DEFAULTS.put(AGENT_MAX_ITERATIONS, "10");
         DEFAULTS.put(AGENT_MAX_REACTIVE_RETRIES, "1");
-        DEFAULTS.put(CLI_SHOW_REASONING, "true");
         DEFAULTS.put(WORKSPACE_PATH, ".");
-        DEFAULTS.put(WEB_PORT, "8080");
+        DEFAULTS.put(UI_CLI_SHOW_REASONING, "true");
+        DEFAULTS.put(UI_WEB_PORT, "8080");
         DEFAULTS.put(MEMORY_MAX_ENTRIES_PER_LAYER, "20");
         DEFAULTS.put(COMPACT_RESULT_BUDGET, "200000");
         DEFAULTS.put(COMPACT_LARGE_RESULT, "30000");

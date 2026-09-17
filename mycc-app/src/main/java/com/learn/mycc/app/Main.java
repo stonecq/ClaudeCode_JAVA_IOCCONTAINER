@@ -31,12 +31,12 @@ public final class Main {
         IocContainer container = application.getIocContainer();
         try {
             UiAdapter adapter = loadAdapter(uiId);
-            AgentApi agent = container.getBean(AgentApi.class);
-            // 全部 bean 在 start 前注册完毕：agent 的两个外向端口由所选 UI 提供
-            container.registerSingleton(InteractionPort.class, adapter.port(agent));
-            container.registerSingleton(UserConfirmation.class, adapter.userConfirmation(agent));
+            // 外向端口先登记（AgentApi 装配时注入到它），再 start 预创建单例
+            container.registerSingleton(InteractionPort.class, adapter.port());
+            container.registerSingleton(UserConfirmation.class, adapter.userConfirmation());
             application.start();
 
+            AgentApi agent = container.getBean(AgentApi.class);
             adapter.start(agent, uiArgs);
 
             container.close();

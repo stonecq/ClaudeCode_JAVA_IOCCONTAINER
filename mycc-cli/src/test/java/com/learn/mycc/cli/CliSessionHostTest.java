@@ -1,67 +1,43 @@
 package com.learn.mycc.cli;
 
-import com.learn.mycc.agent.loop.AgentLoop;
-import com.learn.mycc.agent.session.Message;
-import com.learn.mycc.agent.session.Session;
-import com.learn.mycc.agent.storage.SessionStore;
-import com.learn.mycc.ai.model.ChatResponse;
-import com.learn.mycc.ai.provider.MockProvider;
-import com.learn.mycc.core.annotation.Tool;
-import com.learn.mycc.core.bean.BeanDefinition;
-import com.learn.mycc.core.context.IocContainer;
-import com.learn.mycc.core.hook.HookRegistry;
-import com.learn.mycc.core.skill.SkillRegistry;
-import com.learn.mycc.core.tool.ToolRegistry;
-import com.learn.mycc.storage.config.ConfigService;
-import com.learn.mycc.storage.file.FileStorage;
+import com.learn.mycc.ui.AgentApi;
+import com.learn.mycc.ui.MessageView;
+import com.learn.mycc.ui.SessionView;
+import com.learn.mycc.ui.ToolView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CliSessionHostTest {
 
-    @TempDir
-    Path tempDir;
-
     StringWriter buffer;
     CliPort port;
     CliSessionHost host;
-    SessionStore store;
-
-    /** /tools 用到的夹具工具。 */
-    static final class FixtureTools {
-        @Tool(name = "demo", description = "示例工具")
-        public String demo() {
-            return "";
-        }
-    }
+    FakeAgentApi api;
 
     @BeforeEach
     void setUp() {
         buffer = new StringWriter();
         port = new CliPort(new PrintWriter(buffer), false, true);
-        store = new SessionStore(new FileStorage(tempDir));
-        ToolRegistry registry = new ToolRegistry();
-        registry.postProcessAfterInitialization(new FixtureTools(), "fixture");
-        ConfigService config = new ConfigService(tempDir.resolve("config.json"));
-        host = new CliSessionHost(store, registry, config, port, new StubContainer(port), Session.create());
+        api = new FakeAgentApi();
+        host = new CliSessionHost(api, port, "s0");
     }
 
     @Test
     void sessionsListsSavedSessions() {
-        Session saved = Session.create();
-        saved.addMessage(Message.user("第一句"));
-        store.save(saved);
+        api.sessions.put("s1", List.of(new MessageView("USER", "第一句")));
 
         host.handleSlashCommand("/sessions");
 
-        assertThat(buffer.toString()).contains(saved.id());
+        assertThat(buffer.toString()).contains("s1").contains("第一句");
     }
 
     @Test
@@ -72,14 +48,23 @@ class CliSessionHostTest {
 
     @Test
     void resumeSwitchesCurrentSession() {
-        Session saved = Session.create();
-        saved.addMessage(Message.user("历史问题"));
-        store.save(saved);
+        api.sessions.put("s1", List.of(new MessageView("USER", "历史问题")));
 
-        host.handleSlashCommand("/resume " + saved.id());
+        host.handleSlashCommand("/resume s1");
 
-        assertThat(host.sessionId()).isEqualTo(saved.id());
-        assertThat(buffer.toString()).contains("已切换到会话 " + saved.id());
+        assertThat(host.sessionId()).isEqualTo("s1");
+        assertThat(api.replayed).containsExactly("s1");
+        assertThat(buffer.toString()).contains("已切换到会话 s1");
+    }
+
+    @Test
+    void resumeWithoutIdPicksMostRecent() {
+        api.sessions.put("newest", List.of());
+        api.sessions.put("older", List.of());
+
+        host.handleSlashCommand("/resume");
+
+        assertThat(host.sessionId()).isEqualTo("newest"); // 列表首个 = 最新
     }
 
     @Test
@@ -89,7 +74,7 @@ class CliSessionHostTest {
     }
 
     @Test
-    void resumeWithoutIdReportsNoHistory() {
+    void resumeWithoutAnySessionReportsNoHistory() {
         host.handleSlashCommand("/resume");
         assertThat(buffer.toString()).contains("没有历史会话");
     }
@@ -113,110 +98,67 @@ class CliSessionHostTest {
     }
 
     @Test
-    void cachesAgentLoopPerSessionAndRebuildsOnResume() {
-        StubContainer container = new StubContainer(port);
-        CliSessionHost h = new CliSessionHost(store, new ToolRegistry(), new ConfigService(tempDir.resolve("c2.json")),
-                port, container, Session.create());
-
-        h.runTurn("a");
-        h.runTurn("b");
-        assertThat(container.agentBuilds).isEqualTo(1); // 同会话复用同一循环
-
-        Session other = Session.create();
-        store.save(other);
-        h.handleSlashCommand("/resume " + other.id());
-        h.runTurn("c");
-        assertThat(container.agentBuilds).isEqualTo(2); // 切换会话后重建
+    void runTurnDelegatesChatToAgentApi() {
+        host.runTurn("你好");
+        assertThat(api.chats).containsExactly("s0:你好");
     }
 
-    /** 只实现 getBean(Class,args)（装配一个可跑的 AgentLoop 并计数）的容器替身。 */
-    static final class StubContainer implements IocContainer {
-        private final CliPort port;
-        int agentBuilds;
+    /** 内存版 AgentApi 假实现。 */
+    static final class FakeAgentApi implements AgentApi {
+        final Map<String, List<MessageView>> sessions = new LinkedHashMap<>();
+        final List<String> chats = new ArrayList<>();
+        final List<String> replayed = new ArrayList<>();
 
-        StubContainer(CliPort port) {
-            this.port = port;
+        @Override
+        public List<SessionView> listSessions() {
+            return sessions.entrySet().stream()
+                    .map(e -> new SessionView(e.getKey(), title(e.getValue()), 0L))
+                    .toList();
         }
 
         @Override
-        @SuppressWarnings("unchecked")
-        public <T> T getBean(Class<T> type, Object... args) {
-            agentBuilds++;
-            Session session = (Session) args[0];
-            AgentLoop loop = AgentLoop.withToolRegistry(port,
-                    MockProvider.scripted(request -> ChatResponse.text("ok")),
-                    new ToolRegistry(), "mock", 1, null, session);
-            return (T) loop;
+        public String createSession() {
+            String id = "s" + (sessions.size() + 1);
+            sessions.put(id, List.of());
+            return id;
         }
 
         @Override
-        public void register(BeanDefinition... definitions) {
-            throw new UnsupportedOperationException();
+        public void deleteSession(String id) {
+            sessions.remove(id);
         }
 
         @Override
-        public void register(String basePackage) {
-            throw new UnsupportedOperationException();
+        public List<MessageView> history(String id) {
+            return sessions.getOrDefault(id, List.of());
         }
 
         @Override
-        public void register(Class<?>... types) {
-            throw new UnsupportedOperationException();
+        public void replay(String id) {
+            replayed.add(id);
         }
 
         @Override
-        public void registerSingleton(Class<?> type, Object instance) {
-            throw new UnsupportedOperationException();
+        public void chat(String sessionId, String userMessage) {
+            chats.add(sessionId + ":" + userMessage);
         }
 
         @Override
-        public void overrideSingleton(Class<?> type, Object instance) {
-            throw new UnsupportedOperationException();
+        public List<ToolView> listTools() {
+            return List.of(new ToolView("demo", "示例工具"));
         }
 
         @Override
-        public void addBeanPostProcessor(com.learn.mycc.core.bean.BeanPostProcessor processor) {
-            throw new UnsupportedOperationException();
+        public String config(String key) {
+            return "true";
         }
 
-        @Override
-        public void start() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> T getBean(Class<T> type) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Object getBean(String name) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> java.util.List<T> getBeansOfType(Class<T> type) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public ToolRegistry getToolRegistry() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public HookRegistry getHookRegistry() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public SkillRegistry getSkillRegistry() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void close() {
-            throw new UnsupportedOperationException();
+        private static String title(List<MessageView> history) {
+            return history.stream()
+                    .filter(m -> "USER".equals(m.role()))
+                    .reduce((a, b) -> b)
+                    .map(MessageView::text)
+                    .orElse("（空对话）");
         }
     }
 }

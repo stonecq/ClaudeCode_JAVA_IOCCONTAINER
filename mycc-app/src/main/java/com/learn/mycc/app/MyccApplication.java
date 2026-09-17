@@ -2,61 +2,51 @@ package com.learn.mycc.app;
 
 import com.learn.mycc.core.context.IocContainer;
 
+import java.util.List;
+
 /**
- * IoC 装配根：只负责「创建容器 + 注册组件」，显式 {@link #start()} 触发单例预创建。
- * <p>
- * 职责边界：不掺入任何具体 UI 或业务逻辑。构造即 create + register（扫描根包下的 @Component
- * 并展开 @Configuration 的 @Bean 工厂方法）；装配结果经 {@link #getIocContainer()} 取用，
- * 上层（Main）在准备就绪后调用 {@link #start()}，便于先注册额外 Bean 再启动。
+ * IoC 装配根：只装配 <b>agent 领域</b>包（不含 cli/web/app 等 UI 层）。
+ * <p>UI 组件由各 {@code UiAdapter} 自建；agent 的外向端口（{@code InteractionPort} /
+ * {@code UserConfirmation}）也由 UI 适配器提供，由 {@code Main} 在 start 前登记。</p>
  */
 public final class MyccApplication {
 
-    /** 容器扫描的根包名；决定 register 时自动注册哪些组件，如 "com.learn.mycc"。 */
-    private final String basePackage;
-    /** 装配完成的 IOC 容器；构造结束后即就绪，仅可读、不可再注册。 */
+    /** agent 领域包；UI 层（cli/web/app）刻意不在内，UI 切换对容器无感。 */
+    private static final List<String> DOMAIN_PACKAGES = List.of(
+            "com.learn.mycc.core",
+            "com.learn.mycc.ui",
+            "com.learn.mycc.ai",
+            "com.learn.mycc.storage",
+            "com.learn.mycc.agent",
+            "com.learn.mycc.tools",
+            "com.learn.mycc.hooks",
+            "com.learn.mycc.memory",
+            "com.learn.mycc.skill",
+            "com.learn.mycc.planning",
+            "com.learn.mycc.subagent",
+            "com.learn.mycc.compact");
+
+    /** 装配完成的 IOC 容器；构造后即就绪，仅可读、不可再注册。 */
     private final IocContainer iocContainer;
 
-    /**
-     * 以指定根包装配 IOC 容器。
-     *
-     * @param basePackage 扫描/注册组件的根包名（如 "com.learn.mycc"），不允许为 null 或空串
-     */
-    public MyccApplication(String basePackage) {
-        this.basePackage = basePackage;
+    public MyccApplication() {
         this.iocContainer = assemble();
     }
 
-    /** 无参构造：默认以根包 "com.learn.mycc" 装配容器，方便 API 侧直接 new。 */
-    public MyccApplication() {
-        this("com.learn.mycc");
-    }
-
-    /**
-     * 返回已装配完成的 IOC 容器。
-     *
-     * @return 就绪的容器，非 null；供上层注册额外 Bean、获取 ToolRegistry 等
-     */
+    /** @return 已装配完成的 IOC 容器。 */
     public IocContainer getIocContainer() {
         return iocContainer;
     }
 
-    /**
-     * 启动容器：预创建全部单例（依赖递归创建；prototype 按需创建）。
-     * 拆分自构造器——构造仅负责「创建 + 注册」，显式 start 让装配根（Main）掌控
-     * 启动时机，也为上层先注册额外 Bean 再启动留出窗口。
-     */
+    /** 启动容器：预创建全部单例（prototype 按需）。 */
     public void start() {
         iocContainer.start();
     }
 
-    /**
-     * 完成容器的装配：创建 → 按包注册组件。构造器专用；启动由 {@link #start()} 显式触发。
-     *
-     * @return 装配完成的容器，尚未启动
-     */
+    /** 创建容器并注册领域包内组件。 */
     private IocContainer assemble() {
         IocContainer container = IocContainer.create();
-        container.register(this.basePackage);
+        DOMAIN_PACKAGES.forEach(container::register);
         return container;
     }
 }

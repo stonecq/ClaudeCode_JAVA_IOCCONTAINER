@@ -1,16 +1,19 @@
 package com.learn.mycc.app;
 
 import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.core.permission.UserConfirmation;
+import com.learn.mycc.ui.AgentApi;
 import com.learn.mycc.ui.InteractionPort;
 import com.learn.mycc.ui.UiAdapter;
-import com.learn.mycc.web.WebPort;
 
 import java.util.List;
 import java.util.ServiceLoader;
 
 /**
- * 启动器：装配自研容器（agent 领域）→ 按 {@code --ui <id>} 经 SPI 选择 UI 适配器 → 交由适配器启动。
- * 自身不承载具体 UI 逻辑（CLI 的子命令、Web 的 Spring 都在各自适配器里）；新增界面只需加模块 + SPI 注册。
+ * 启动器：装配自研容器（agent 领域）→ 按 {@code --ui <id>} 经 SPI 选择 UI 适配器 →
+ * 取 agent 门面 {@link AgentApi} → 在 {@code start()} 前把适配器提供的两个外向端口（输出 / 审批）
+ * 登记进容器 → 交适配器启动。
+ * <p>自身不认识任何具体 UI，也不向 UI 暴露容器；新增界面只需加模块 + SPI 注册。</p>
  */
 public final class Main {
 
@@ -27,17 +30,14 @@ public final class Main {
         MyccApplication application = new MyccApplication();
         IocContainer container = application.getIocContainer();
         try {
-            // 全部 bean 在 start 前注册完毕：web 模式把 InteractionPort 注册为 WebPort（唯一键）。
-            // （"由 UI 提供外向端口"待 CLI 去容器化阶段一并移入 UiAdapter。）
-            if ("web".equals(uiId)) {
-                WebPort webPort = new WebPort();
-                container.registerSingleton(WebPort.class, webPort);
-                container.registerSingleton(InteractionPort.class, webPort);
-            }
+            UiAdapter adapter = loadAdapter(uiId);
+            AgentApi agent = container.getBean(AgentApi.class);
+            // 全部 bean 在 start 前注册完毕：agent 的两个外向端口由所选 UI 提供
+            container.registerSingleton(InteractionPort.class, adapter.port(agent));
+            container.registerSingleton(UserConfirmation.class, adapter.userConfirmation(agent));
             application.start();
 
-            UiAdapter adapter = loadAdapter(uiId);
-            adapter.start(container, uiArgs);
+            adapter.start(agent, uiArgs);
 
             container.close();
             System.exit(0);

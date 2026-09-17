@@ -1,19 +1,16 @@
 package com.learn.mycc.ui;
 
-import com.learn.mycc.core.context.IocContainer;
+import com.learn.mycc.core.permission.UserConfirmation;
 
 import java.util.ServiceLoader;
 
 /**
  * UI 适配器：一个可插拔界面（cli / web / native …）的契约。
- * <p>分工：自研容器只装配 <b>agent 领域</b>；UI 全在容器之外，经本接口接入——从容器取所需
- * agent 组件（如 {@code AgentLoop}），并自行处理界面传输（CLI 用 JLine/picocli、Web 用 Spring）。
- * 于是 UI 切换对 agent 与容器<b>无感</b>。</p>
+ * <p>UI 只依赖 {@link AgentApi}（agent 门面）与自管传输物；<b>不接触自研容器与 agent 内部 bean</b>。
+ * UI 向容器提供两个"外向端口"（输出 {@link InteractionPort}、审批 {@link UserConfirmation}），
+ * 由 Main 在 {@code start()} 前登记。</p>
  * <p>发现方式：{@link ServiceLoader}（各 UI 模块在 {@code META-INF/services/} 注册实现）。
  * 新增 UI = 加模块 + 实现本接口 + 注册文件，Main 与 agent 零改动。</p>
- *
- * <p>注：agent 的外向端口（输出 {@code InteractionPort}、审批 {@code UserConfirmation}）由 UI
- * 提供——待"CLI 去容器化"阶段一并纳入本接口（届时新增 {@code port()} / {@code userConfirmation()}）。</p>
  */
 public interface UiAdapter {
 
@@ -21,10 +18,25 @@ public interface UiAdapter {
     String id();
 
     /**
-     * 拉起该 UI：从容器取所需 agent 组件、启动界面并阻塞至退出。
+     * 该 UI 的输出端口（agent 经它下发 {@code OutputEvent}）。实现可惰性创建并缓存。
      *
-     * @param container 已装配 agent 的自研容器
-     * @param args      该 UI 自己的参数（{@code --ui <id>} 已被剥离）
+     * @param agent agent 门面（如读配置）
      */
-    void start(IocContainer container, String[] args);
+    InteractionPort port(AgentApi agent);
+
+    /**
+     * 该 UI 的审批输入端口（agent 权限系统经它征求用户决定）。
+     * 无交互审批能力的 UI 可返回 fail-closed 实现（{@code UnavailableUserConfirmation}）。
+     *
+     * @param agent agent 门面
+     */
+    UserConfirmation userConfirmation(AgentApi agent);
+
+    /**
+     * 拉起该 UI：用 {@link AgentApi} 驱动对话、启动界面并阻塞至退出。
+     *
+     * @param agent agent 门面
+     * @param args  该 UI 自己的参数（{@code --ui <id>} 已被剥离）
+     */
+    void start(AgentApi agent, String[] args);
 }

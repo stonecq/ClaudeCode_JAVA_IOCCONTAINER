@@ -1,8 +1,9 @@
 package com.learn.mycc.web;
 
-import com.learn.mycc.agent.storage.SessionStore;
-import com.learn.mycc.core.context.IocContainer;
-import com.learn.mycc.storage.file.FileStorage;
+import com.learn.mycc.ui.AgentApi;
+import com.learn.mycc.ui.MessageView;
+import com.learn.mycc.ui.SessionView;
+import com.learn.mycc.ui.ToolView;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -12,7 +13,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
-import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,16 +25,17 @@ import static org.assertj.core.api.Assertions.assertThat;
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WebSmokeTest {
 
-    /** 提供 WebController 所需的自研容器（含 SessionStore 与 WebPort）。 */
+    /** 提供 WebController 所需的 AgentApi 与 WebPort。 */
     @TestConfiguration
     static class TestBeans {
         @Bean
-        IocContainer iocContainer() throws Exception {
-            IocContainer container = IocContainer.create();
-            FileStorage storage = new FileStorage(Files.createTempDirectory("mycc-web-smoke"));
-            container.registerSingleton(SessionStore.class, new SessionStore(storage));
-            container.registerSingleton(WebPort.class, new WebPort());
-            return container;
+        AgentApi agentApi() {
+            return new FakeAgentApi();
+        }
+
+        @Bean
+        WebPort webPort() {
+            return new WebPort();
         }
     }
 
@@ -62,5 +66,53 @@ class WebSmokeTest {
         ResponseEntity<String> page = rest.getForEntity("/", String.class);
         assertThat(page.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(page.getBody()).contains("mycc");
+    }
+
+    /** 内存版 AgentApi 假实现。 */
+    static final class FakeAgentApi implements AgentApi {
+        private final Map<String, List<MessageView>> sessions = new LinkedHashMap<>();
+        private int counter = 0;
+
+        @Override
+        public List<SessionView> listSessions() {
+            return sessions.entrySet().stream()
+                    .map(e -> new SessionView(e.getKey(), "（空对话）", 0L))
+                    .toList();
+        }
+
+        @Override
+        public String createSession() {
+            String id = "sess-" + (++counter);
+            sessions.put(id, List.of());
+            return id;
+        }
+
+        @Override
+        public void deleteSession(String id) {
+            sessions.remove(id);
+        }
+
+        @Override
+        public List<MessageView> history(String id) {
+            return sessions.getOrDefault(id, List.of());
+        }
+
+        @Override
+        public void replay(String id) {
+        }
+
+        @Override
+        public void chat(String sessionId, String userMessage) {
+        }
+
+        @Override
+        public List<ToolView> listTools() {
+            return new ArrayList<>();
+        }
+
+        @Override
+        public String config(String key) {
+            return "";
+        }
     }
 }

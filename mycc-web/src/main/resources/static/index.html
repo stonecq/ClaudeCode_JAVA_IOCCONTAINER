@@ -94,9 +94,9 @@ async function select(id) {
   // 历史消息
   const history = await (await fetch('/v1/sessions/' + id)).json();
   for (const m of history) {
-    if (m.role === 'USER') line('user', '我 > ' + m.content);
-    else if (m.role === 'ASSISTANT' && m.content) line('', m.content);
-    else if (m.role === 'TOOL') line('result', '[结果] ' + m.content);
+    if (m.role === 'USER') line('user', '我 > ' + m.text);
+    else if (m.role === 'ASSISTANT' && m.text) line('', m.text);
+    else if (m.role === 'TOOL') line('result', '[结果] ' + m.text);
   }
   // 实时事件
   es = new EventSource('/v1/sessions/' + id + '/events');
